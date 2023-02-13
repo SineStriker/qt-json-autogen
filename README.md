@@ -1,13 +1,13 @@
 # Qt Auto Serialization
 
-A compile time tool to generate source codes for class serialization.
+A compile time tool to generate serialization source codes for class serialization.
 
 ## Introduction
 
-### Supported Formats
+### Supported Types
 
 + Enumeration
-+ Json
++ Class
 
 ### Libraries Used
 
@@ -18,6 +18,8 @@ A compile time tool to generate source codes for class serialization.
 
 ### Json
 
-Generate json serialization and deserialization member functions based on QJsonObject
+Generate json serializer and deserializer based on QJsonObject
 
-+ 
+### Enumeration
+
+Generate enumeration converter (to and from QString)
