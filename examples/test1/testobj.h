@@ -8,6 +8,7 @@
 namespace NS {
 
     struct NSClass {
+
         enum TestNestClass2 {
             Microsoft,
             Apple,
@@ -32,6 +33,8 @@ enum TestEnum {
 
 QAS_ENUM_DECLARE(TestEnum)
 
+QAS_ENUM_DECLARE(NS::NSClass::TestNestClass2)
+
 class TestClass {
 public:
     TestClass() {
@@ -39,18 +42,6 @@ public:
 
     ~TestClass() {
     }
-
-    class NestClass {
-    public:
-        QString ZheJiang;
-        QString ShangHai;
-    };
-
-    enum TestClassEnum {
-        Apple,
-        Banana,
-        Lemon,
-    };
 
 public:
     // Member using explict specified property name
@@ -63,13 +54,6 @@ public:
     // Member ignored
     QAS_IGNORE
     QString Mark;
-
-    std::function<void()> abc;
-
-    QMap<QString, QHash<int, QVariant>> mm;
-
-protected:
-    int KK;
 };
 
 QAS_JSON_DECLARE(TestClass)

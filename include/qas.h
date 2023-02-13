@@ -32,7 +32,7 @@
                                                                                                    \
         static TYPE fromObject(const QJsonObject &obj, bool *ok = nullptr);                        \
                                                                                                    \
-        static QJsonObject toObject(const TYPE &obj);                                              \
+        static QJsonObject toObject(const TYPE &cls);                                              \
     };
 
 

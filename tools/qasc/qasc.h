@@ -42,8 +42,6 @@
 
 QT_BEGIN_NAMESPACE
 
-struct QMetaObject;
-
 struct Type {
     enum ReferenceType { NoReference, Reference, RValueReference, Pointer };
 
@@ -69,14 +67,20 @@ struct ClassDef;
 struct EnumDef {
     QByteArray name;
     QByteArray enumName;
-    QVector<bool> ignoreList;
-    QVector<QByteArray> attrList;
-    QVector<QByteArray> values;
+
+    struct Value {
+        QByteArray name;
+        QByteArray attr;
+        bool ignore = false;
+    };
+
+    QVector<Value> values;
+
     bool isEnumClass; // c++11 enum class
     Type enumType;
     EnumDef() : isEnumClass(false) {
     }
-    QJsonObject toJson(const ClassDef &cdef) const;
+    QJsonObject toJson() const;
 };
 Q_DECLARE_TYPEINFO(EnumDef, Q_MOVABLE_TYPE);
 
@@ -121,6 +125,14 @@ struct FunctionDef {
 };
 Q_DECLARE_TYPEINFO(FunctionDef, Q_MOVABLE_TYPE);
 
+struct MemberVariableDef : ArgumentDef {
+    bool ignore;
+    QByteArray attr;
+    FunctionDef::Access access;
+
+    MemberVariableDef() : ignore(false), access(FunctionDef::Public) {
+    }
+};
 
 struct ClassInfoDef {
     QByteArray name;
@@ -140,8 +152,7 @@ struct BaseDef {
 struct ClassDef : BaseDef {
     QVector<QPair<QByteArray, FunctionDef::Access>> superclassList;
 
-    QVector<ArgumentDef> memberVars;
-    QVector<QByteArray> memberVarAttrs;
+    QVector<MemberVariableDef> memberVars;
 
     struct Interface {
         Interface() {
@@ -161,34 +172,51 @@ struct ClassDef : BaseDef {
 Q_DECLARE_TYPEINFO(ClassDef, Q_MOVABLE_TYPE);
 Q_DECLARE_TYPEINFO(ClassDef::Interface, Q_MOVABLE_TYPE);
 
-struct NamespaceDef : BaseDef {
-};
+struct NamespaceDef : BaseDef {};
+
 Q_DECLARE_TYPEINFO(NamespaceDef, Q_MOVABLE_TYPE);
 
-struct EnvironmentDef : BaseDef {
+struct Environment {
+    bool isRoot;
     bool isNamespace;
+    FunctionDef::Access access = FunctionDef::Public;
+
+    QSharedPointer<NamespaceDef> ns;
+    QSharedPointer<ClassDef> cl;
+
+    Environment *parent;
+    QVector<QSharedPointer<Environment>> children;
+    QVector<EnumDef> enums;
+
+    QSet<QByteArray> enumToGen;
+    QSet<QByteArray> classToGen;
+
+    Environment() : isRoot(true), isNamespace(false), parent(nullptr) {
+    }
+    Environment(NamespaceDef *ns, Environment *parent)
+        : isRoot(false), isNamespace(true), ns(ns), parent(parent) {
+    }
+    Environment(ClassDef *cl, Environment *parent)
+        : isRoot(false), isNamespace(false), cl(cl), parent(parent) {
+    }
 };
 
 class Moc : public Parser {
 public:
-    Moc() : noInclude(false), mustIncludeQPluginH(false) {
+    Moc() : noInclude(false) {
     }
 
     QByteArray filename;
 
-    BaseDef enumDeclarations;
-    BaseDef jsonDeclarations;
-    QVector<EnumDef> globalEnums;
-
     bool noInclude;
-    bool mustIncludeQPluginH;
     QByteArray includePath;
     QVector<QByteArray> includeFiles;
-    QVector<ClassDef> classList;
 
-    QList<EnvironmentDef> environments;
+    Environment rootEnv;
 
     void parse();
+    void parseEnv(Environment *env);
+
     void generate(FILE *out, FILE *jsonOutput);
 
     bool parseClassHead(ClassDef *def);
@@ -198,6 +226,11 @@ public:
 
     inline bool inNamespace(const NamespaceDef *def) const {
         return index > def->begin && index < def->end - 1;
+    }
+
+    inline bool inEnv(const Environment *env) const {
+        return env->isRoot ||
+               (env->isNamespace ? inNamespace(env->ns.data()) : inClass(env->cl.data()));
     }
 
     Type parseType();

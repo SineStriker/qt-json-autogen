@@ -11,7 +11,6 @@ add_qt_private_inc(_qt_private_incs Core)
 # ----------------------------------
 # Add target
 # ----------------------------------)
-include_directories(../../include)
 add_files(_src CURRENT_RECURSE PATTERNS *.h *.c *.cpp)
 add_executable(${PROJECT_NAME} ${_src})
 
@@ -22,4 +21,18 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE APP_VERSION="${PROJECT_VERSIO
 target_link_libraries(${PROJECT_NAME} PRIVATE ${_qt_libs} mocparser)
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${_qt_private_incs})
 
-include(../../QasUtils.cmake)
+if(WIN32)
+    # configure rc
+    set(WIN32_EXPORT_NAME ${PROJECT_NAME})
+    set(WIN32_COPYRIGHT_START_YEAR "2023")
+    set(WIN32_COPYRIGHT_END_YEAR "2023")
+    set(WIN32_AUTHOR_NAME "Sine Striker")
+    set(WIN32_FILE_DESC "Qt Auto Serialization Compiler")
+    set(WIN32_PRODUCT_NAME "Qt Tools")
+    configure_file(
+        res.rc.in
+        ${CMAKE_CURRENT_BINARY_DIR}/res.rc
+        @ONLY
+    )
+    target_sources(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/res.rc)
+endif()

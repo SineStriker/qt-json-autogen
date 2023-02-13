@@ -605,11 +605,7 @@ int runMoc(int argc, char **argv) {
     if (pp.preprocessOnly) {
         fprintf(out, "%s\n", composePreprocessorOutput(moc.symbols).constData());
     } else {
-        if (moc.classList.isEmpty())
-            moc.note("No relevant classes found. No output generated.");
-        else {
-            moc.generate(out, jsonOutput.data());
-        }
+        moc.generate(out, jsonOutput.data());
     }
 
     if (output.size())

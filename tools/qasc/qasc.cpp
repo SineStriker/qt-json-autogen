@@ -29,6 +29,7 @@
 
 #include "qasc.h"
 
+#include "generator.h"
 #include "outputrevision.h"
 #include "qdatetime.h"
 #include "utils.h"
@@ -308,9 +309,7 @@ bool Moc::parseEnum(EnumDef *def) {
                     break;
             }
 
-            def->values += lexem();
-            def->attrList += attr;
-            def->ignoreList += ignore;
+            def->values += {lexem(), attr, ignore};
         }
         handleInclude();
         skipCxxAttributes();
@@ -530,286 +529,262 @@ bool Moc::parseMaybeFunction(const ClassDef *cdef, FunctionDef *def) {
 }
 
 void Moc::parse() {
-    QVector<NamespaceDef> namespaceList;
-    bool templateClass = false;
-    while (hasNext()) {
+    parseEnv(&rootEnv);
+}
+
+void Moc::parseEnv(Environment *env) {
+    auto access = env->access;
+    while (inEnv(env) && hasNext()) {
         Token t = next();
-        switch (t) {
-            case NAMESPACE: {
-                int rewind = index;
-                if (test(IDENTIFIER)) {
-                    QByteArray nsName = lexem();
-                    QByteArrayList nested;
-                    while (test(SCOPE)) {
-                        next(IDENTIFIER);
+        if (env->isNamespace || env->isRoot) {
+            switch (t) {
+                case NAMESPACE: {
+                    if (test(IDENTIFIER)) {
+                        QByteArray nsName = lexem();
+                        QByteArrayList nested;
                         nested.append(nsName);
-                        nsName = lexem();
+                        while (test(SCOPE)) {
+                            next(IDENTIFIER);
+                            nested.append(nsName);
+                            nsName = lexem();
+                        }
+                        if (test(EQ)) {
+                            // namespace Foo = Bar::Baz;
+                            until(SEMIC);
+                        } else if (test(LPAREN)) {
+                            // Ignore invalid code such as: 'namespace __identifier("x")'
+                            // (QTBUG-56634)
+                            until(RPAREN);
+                        } else if (!test(SEMIC)) {
+                            NamespaceDef def;
+                            def.classname = nsName;
+                            def.qualified = nested.join("::");
+
+                            next(LBRACE);
+                            def.begin = index - 1;
+                            until(RBRACE);
+                            def.end = index;
+                            index = def.begin + 1;
+
+                            auto newNamespace = new NamespaceDef(std::move(def));
+                            auto newEnv = QSharedPointer<Environment>::create(newNamespace, env);
+                            parseEnv(newEnv.data());
+                            env->children.append(newEnv);
+                        }
                     }
-                    if (test(EQ)) {
-                        // namespace Foo = Bar::Baz;
-                        until(SEMIC);
-                    } else if (test(LPAREN)) {
-                        // Ignore invalid code such as: 'namespace __identifier("x")' (QTBUG-56634)
-                        until(RPAREN);
-                    } else if (!test(SEMIC)) {
-                        NamespaceDef def;
-                        def.classname = nsName;
-
-                        next(LBRACE);
-                        def.begin = index - 1;
-                        until(RBRACE);
-                        def.end = index;
-                        index = def.begin + 1;
-
-                        for (int i = namespaceList.size() - 1; i >= 0; --i) {
-                            if (inNamespace(&namespaceList.at(i))) {
-                                def.qualified.prepend(namespaceList.at(i).classname + "::");
-                            }
-                        }
-                        for (const QByteArray &ns : nested) {
-                            NamespaceDef parentNs;
-                            parentNs.classname = ns;
-                            parentNs.qualified = def.qualified;
-                            def.qualified += ns + "::";
-                            parentNs.begin = def.begin;
-                            parentNs.end = def.end;
-                            namespaceList += parentNs;
-                        }
-
-                        while (inNamespace(&def) && hasNext()) {
-                            switch (next()) {
-                                case NAMESPACE:
-                                    if (test(IDENTIFIER)) {
-                                        while (test(SCOPE))
-                                            next(IDENTIFIER);
-                                        if (test(EQ)) {
-                                            // namespace Foo = Bar::Baz;
-                                            until(SEMIC);
-                                        } else if (!test(SEMIC)) {
-                                            until(RBRACE);
-                                        }
-                                    }
-                                    break;
-                                case Q_NAMESPACE_TOKEN:
-                                case Q_NAMESPACE_EXPORT_TOKEN:
-                                case Q_ENUMS_TOKEN:
-                                case Q_ENUM_NS_TOKEN:
-                                case Q_ENUM_TOKEN:
-                                case Q_FLAGS_TOKEN:
-                                case Q_FLAG_NS_TOKEN:
-                                case Q_FLAG_TOKEN:
-                                case Q_DECLARE_FLAGS_TOKEN:
-                                    break;
-                                case ENUM: {
-                                    EnumDef enumDef;
-                                    if (parseEnum(&enumDef)) {
-                                        def.enumList += enumDef;
-                                    }
-                                } break;
-                                case CLASS:
-                                case STRUCT: {
-                                    ClassDef classdef;
-                                    if (!parseClassHead(&classdef))
-                                        continue;
-                                    while (inClass(&classdef) && hasNext())
-                                        next(); // consume all Q_XXXX macros from this class
-                                } break;
-                                default:
-                                    break;
-                            }
-                        }
-                        namespaceList += def;
-                        index = rewind;
-                    }
-                }
-                break;
-            }
-            case SEMIC:
-            case RBRACE:
-                templateClass = false;
-                break;
-            case TEMPLATE:
-                templateClass = true;
-                break;
-            case MOC_INCLUDE_BEGIN:
-                currentFilenames.push(symbol().unquotedLexem());
-                break;
-            case MOC_INCLUDE_END:
-                currentFilenames.pop();
-                break;
-            case Q_DECLARE_INTERFACE_TOKEN:
-                break;
-            case Q_DECLARE_METATYPE_TOKEN:
-                break;
-            case USING:
-                if (test(NAMESPACE)) {
-                    while (test(SCOPE) || test(IDENTIFIER))
-                        ;
-                    // Ignore invalid code such as: 'using namespace __identifier("x")'
-                    // (QTBUG-63772)
-                    if (test(LPAREN))
-                        until(RPAREN);
-                    next(SEMIC);
-                }
-                break;
-            case ENUM: {
-                // Collect global enums
-                EnumDef enumDef;
-                if (parseEnum(&enumDef)) {
-                    globalEnums += enumDef;
-                }
-                break;
-            }
-            case QAS_ENUM_DECLARE_TOKEN: {
-                parseEnumOrFlag(&enumDeclarations, false);
-                break;
-            }
-            case QAS_JSON_DECLARE_TOKEN: {
-                parseEnumOrFlag(&jsonDeclarations, false);
-                break;
-            }
-            case CLASS:
-            case STRUCT: {
-                if (currentFilenames.size() <= 1)
                     break;
+                }
+                case SEMIC:
+                case RBRACE:
+                case TEMPLATE:
+                case Q_DECLARE_INTERFACE_TOKEN:
+                case Q_DECLARE_METATYPE_TOKEN:
+                    break;
+                case MOC_INCLUDE_BEGIN:
+                    currentFilenames.push(symbol().unquotedLexem());
+                    break;
+                case MOC_INCLUDE_END:
+                    currentFilenames.pop();
+                    break;
+                case USING:
+                    if (test(NAMESPACE)) {
+                        while (test(SCOPE) || test(IDENTIFIER))
+                            ;
+                        // Ignore invalid code such as: 'using namespace __identifier("x")'
+                        // (QTBUG-63772)
+                        if (test(LPAREN))
+                            until(RPAREN);
+                        next(SEMIC);
+                    }
+                    break;
+                case ENUM: {
+                    EnumDef enumDef;
+                    if (parseEnum(&enumDef)) {
+                        env->enums += enumDef;
+                    }
+                    break;
+                }
+                case QAS_ENUM_DECLARE_TOKEN: {
+                    if (env->isRoot) {
+                        BaseDef tmpDef;
+                        parseEnumOrFlag(&tmpDef, false);
+                        env->enumToGen.insert(tmpDef.enumDeclarations.begin().key());
+                    }
+                    break;
+                }
+                case QAS_JSON_DECLARE_TOKEN: {
+                    if (env->isRoot) {
+                        BaseDef tmpDef;
+                        parseEnumOrFlag(&tmpDef, false);
+                        env->classToGen.insert(tmpDef.enumDeclarations.begin().key());
+                    }
+                    break;
+                }
+                case CLASS:
+                case STRUCT: {
+                    ClassDef def;
+                    if (parseClassHead(&def)) {
+                        if (currentFilenames.size() <= 1) {
+                            auto newClass = new ClassDef(std::move(def));
+                            auto newEnv = QSharedPointer<Environment>::create(newClass, env);
+                            env->access = t == CLASS ? FunctionDef::Private : FunctionDef::Public;
 
-                ClassDef def;
-                if (!parseClassHead(&def))
-                    continue;
+                            parseEnv(newEnv.data());
+                            env->children.append(newEnv);
+                        } else {
+                            while (inClass(&def) && hasNext()) {
+                                next();
+                            }
+                        }
+                        break;
+                    }
+                }
+                default:
+                    break;
+            }
+        } else {
+            switch (t) {
+                case PRIVATE:
+                    access = FunctionDef::Private;
+                    break;
+                case PROTECTED:
+                    access = FunctionDef::Protected;
+                    break;
+                case PUBLIC:
+                    access = FunctionDef::Public;
+                    break;
+                case STRUCT:
+                case CLASS: {
+                    ClassDef def;
+                    if (parseClassHead(&def)) {
+                        if (currentFilenames.size() <= 1) {
+                            auto newClass = new ClassDef(std::move(def));
+                            auto newEnv = QSharedPointer<Environment>::create(newClass, env);
+                            env->access = t == CLASS ? FunctionDef::Private : FunctionDef::Public;
 
-                while (inClass(&def) && hasNext()) {
-                    switch (next()) {
-                        case Q_OBJECT_TOKEN:
-                        case Q_GADGET_TOKEN:
+                            parseEnv(newEnv.data());
+                            env->children.append(newEnv);
+                        } else {
+                            while (inClass(&def) && hasNext()) {
+                                next();
+                            }
+                        }
+                        break;
+                    }
+                    break;
+                }
+                case ENUM: {
+                    EnumDef enumDef;
+                    if (parseEnum(&enumDef)) {
+                        env->enums += enumDef;
+                    }
+                    break;
+                }
+                case Q_SIGNALS_TOKEN:
+                case Q_SLOTS_TOKEN:
+                case Q_OBJECT_TOKEN:
+                case Q_GADGET_TOKEN:
+                case Q_PROPERTY_TOKEN:
+                case Q_PLUGIN_METADATA_TOKEN:
+                case Q_ENUMS_TOKEN:
+                case Q_ENUM_TOKEN:
+                case Q_ENUM_NS_TOKEN:
+                case Q_FLAGS_TOKEN:
+                case Q_FLAG_TOKEN:
+                case Q_FLAG_NS_TOKEN:
+                case Q_DECLARE_FLAGS_TOKEN:
+                case Q_CLASSINFO_TOKEN:
+                case Q_INTERFACES_TOKEN:
+                case Q_PRIVATE_SLOT_TOKEN:
+                case Q_PRIVATE_PROPERTY_TOKEN:
+                case SEMIC:
+                case COLON:
+                    break;
+                case RBRACE:
+                    break;
+                default:
+                    bool ignore = false;
+                    QByteArray attr;
+                    switch (t) {
+                        case QAS_ATTRIBUTE_TOKEN: {
+                            BaseDef baseDef;
+                            parseEnumOrFlag(&baseDef, false);
+                            attr = baseDef.enumDeclarations.begin().key();
+                            if (!hasNext()) {
+                                error("QAS_ATTRIBUTE has no following member.");
+                            }
+                            next();
+                            break;
+                        }
+                        case QAS_IGNORE_TOKEN:
+                            ignore = true;
+                            if (!hasNext()) {
+                                error("QAS_IGNORE has no following member.");
+                            }
+                            next();
+                            break;
+
                         default:
                             break;
                     }
-                }
 
-                for (int i = namespaceList.size() - 1; i >= 0; --i)
-                    if (inNamespace(&namespaceList.at(i)))
-                        def.qualified.prepend(namespaceList.at(i).classname + "::");
-                continue;
-            }
-            default:
-                break;
-        }
-        if ((t != CLASS && t != STRUCT) || currentFilenames.size() > 1)
-            continue;
-        ClassDef def;
-        if (parseClassHead(&def)) {
-            FunctionDef::Access access = FunctionDef::Private;
-            for (int i = namespaceList.size() - 1; i >= 0; --i)
-                if (inNamespace(&namespaceList.at(i)))
-                    def.qualified.prepend(namespaceList.at(i).classname + "::");
-            while (inClass(&def) && hasNext()) {
-                bool jsonIgnore = false;
-                QByteArray jsonProp;
-                switch ((t = next())) {
-                    case PRIVATE:
-                        access = FunctionDef::Private;
-                        break;
-                    case PROTECTED:
-                        access = FunctionDef::Protected;
-                        break;
-                    case PUBLIC:
-                        access = FunctionDef::Public;
-                        break;
-                    case CLASS: {
-                        ClassDef nestedDef;
-                        if (parseClassHead(&nestedDef)) {
-                            while (inClass(&nestedDef) && inClass(&def)) {
-                                t = next();
-                                if (t >= Q_META_TOKEN_BEGIN && t < Q_META_TOKEN_END)
-                                    error("Meta object features not supported for nested classes");
-                            }
-                        }
-                    } break;
-                    case Q_SIGNALS_TOKEN:
-                    case Q_SLOTS_TOKEN:
-                    case Q_OBJECT_TOKEN:
-                    case Q_GADGET_TOKEN:
-                    case Q_PROPERTY_TOKEN:
-                    case Q_PLUGIN_METADATA_TOKEN:
-                    case Q_ENUMS_TOKEN:
-                    case Q_ENUM_TOKEN:
-                    case Q_ENUM_NS_TOKEN:
-                    case Q_FLAGS_TOKEN:
-                    case Q_FLAG_TOKEN:
-                    case Q_FLAG_NS_TOKEN:
-                    case Q_DECLARE_FLAGS_TOKEN:
-                    case Q_CLASSINFO_TOKEN:
-                    case Q_INTERFACES_TOKEN:
-                    case Q_PRIVATE_SLOT_TOKEN:
-                    case Q_PRIVATE_PROPERTY_TOKEN:
-                    case ENUM: {
-                        EnumDef enumDef;
-                        if (parseEnum(&enumDef)) {
-                            def.enumList += enumDef;
-                        }
-                    } break;
-                    case SEMIC:
-                    case COLON:
-                        break;
-                    default:
-                        bool hasQasSign = false;
-                        bool ignore = false;
-                        QByteArray attr;
-                        switch (t) {
-                            case QAS_ATTRIBUTE_TOKEN: {
-                                BaseDef baseDef;
-                                parseEnumOrFlag(&baseDef, false);
-                                attr = baseDef.enumDeclarations.begin().key();
-                                if (!hasNext()) {
-                                    error("QAS_ATTRIBUTE has no following member.");
-                                }
-                                next();
-                                break;
-                            }
-                            case QAS_IGNORE_TOKEN:
-                                ignore = true;
-                                if (!hasNext()) {
-                                    error("QAS_IGNORE has no following member.");
-                                }
-                                next();
-                                break;
-
-                            default:
-                                break;
-                        }
-
-                        FunctionDef funcDef;
-                        funcDef.access = access;
-                        int rewind = index--;
-                        if (parseMaybeFunction(&def, &funcDef)) {
+                    FunctionDef funcDef;
+                    funcDef.access = access;
+                    int rewind = index--;
+                    if (parseMaybeFunction(env->cl.data(), &funcDef)) {
+                    } else {
+                        index = rewind - 1;
+                        MemberVariableDef arg;
+                        if (parseMemberVariable(&arg)) {
+                            arg.access = access;
+                            arg.attr = attr;
+                            arg.ignore = ignore;
+                            env->cl->memberVars += arg;
                         } else {
-                            index = rewind - 1;
-                            ArgumentDef arg;
-                            if (parseMemberVariable(&arg)) {
-                                if (!ignore && access == FunctionDef::Public) {
-                                    def.memberVars += arg;
-                                    def.memberVarAttrs += attr;
-                                }
-                            } else {
-                                index = rewind;
-                            }
+                            index = rewind;
                         }
-                }
+                    }
             }
-
-            next(RBRACE);
-
-            classList += def;
         }
     }
-    for (const auto &n : qAsConst(namespaceList)) {
-        ClassDef def;
-        static_cast<BaseDef &>(def) = static_cast<BaseDef>(n);
-        def.qualified += def.classname;
-        auto it = std::find_if(classList.begin(), classList.end(), [&def](const ClassDef &val) {
-            return def.classname == val.classname && def.qualified == val.qualified;
-        });
+}
+
+static QJsonObject encodeEnv(Environment *env) {
+    QJsonObject envObj;
+
+    // Type
+    envObj.insert("type", env->isRoot ? "root" : (env->isNamespace ? "namespace" : "class"));
+
+    // Enums
+    QJsonArray enumArr;
+    for (const auto &item : qAsConst(env->enums)) {
+        enumArr.append(item.toJson());
     }
+    envObj.insert("enums", enumArr);
+
+    // Properties
+    if (!env->isRoot) {
+        QJsonObject classObj;
+        if (!env->isNamespace) {
+            classObj = env->cl->toJson();
+        } else {
+            ClassDef def;
+            static_cast<BaseDef &>(def) = static_cast<BaseDef>(*env->ns.data());
+            classObj = def.toJson();
+        }
+        for (auto it = classObj.begin(); it != classObj.end(); ++it) {
+            envObj.insert(it.key(), it.value());
+        }
+    }
+
+    // Children
+    QJsonArray childArr;
+    for (const auto &child : qAsConst(env->children)) {
+        childArr.append(encodeEnv(child.data()));
+    }
+    envObj.insert("children", childArr);
+
+    return envObj;
 }
 
 void Moc::generate(FILE *out, FILE *jsonOutput) {
@@ -823,7 +798,7 @@ void Moc::generate(FILE *out, FILE *jsonOutput) {
             "/****************************************************************************\n"
             "** Auto serialization code from reading C++ file '%s'\n**\n",
             fn.constData());
-    fprintf(out, "** Created by: The Qt Auto Serialization Compiler version %d (Qt %s)\n**\n",
+    fprintf(out, "** Created by: The Qt Auto Serialization Compiler version %s (Qt %s)\n**\n",
             APP_VERSION, QT_VERSION_STR);
     fprintf(out,
             "** WARNING! All changes made in this file will be lost!\n"
@@ -833,8 +808,7 @@ void Moc::generate(FILE *out, FILE *jsonOutput) {
     if (!noInclude) {
         if (includePath.size() && !includePath.endsWith('/'))
             includePath += '/';
-        for (int i = 0; i < includeFiles.size(); ++i) {
-            QByteArray inc = includeFiles.at(i);
+        for (auto inc : includeFiles) {
             if (inc.at(0) != '<' && inc.at(0) != '"') {
                 if (includePath.size() && includePath != "./")
                     inc.prepend(includePath);
@@ -843,59 +817,34 @@ void Moc::generate(FILE *out, FILE *jsonOutput) {
             fprintf(out, "#include %s\n", inc.constData());
         }
     }
-    if (classList.size() && classList.constFirst().classname == "Qt")
-        fprintf(out, "#include <QtCore/qobject.h>\n");
 
-    fprintf(out, "#include <QtCore/qbytearray.h>\n"); // For QByteArrayData
-    fprintf(out, "#include <QtCore/qmetatype.h>\n");  // For QMetaType::Type
-    if (mustIncludeQPluginH)
-        fprintf(out, "#include <QtCore/qplugin.h>\n");
-
-    fprintf(out,
-            "#if !defined(Q_MOC_OUTPUT_REVISION)\n"
-            "#error \"The header file '%s' doesn't include <QObject>.\"\n",
-            fn.constData());
-    fprintf(out, "#elif Q_MOC_OUTPUT_REVISION != %d\n", mocOutputRevision);
-    fprintf(out,
-            "#error \"This file was generated using the moc from %s."
-            " It\"\n#error \"cannot be used with the include files from"
-            " this version of Qt.\"\n#error \"(The moc has changed too"
-            " much.)\"\n",
-            QT_VERSION_STR);
-    fprintf(out, "#endif\n\n");
-
-    //    fprintf(out, "QT_BEGIN_MOC_NAMESPACE\n");
-    //    fprintf(out, "QT_WARNING_PUSH\n");
-    //    fprintf(out, "QT_WARNING_DISABLE_DEPRECATED\n");
+    //    fprintf(out, "#include <QtCore/qbytearray.h>\n"); // For QByteArrayData
+    //    fprintf(out, "#include <QtCore/qmetatype.h>\n");  // For QMetaType::Type
     //
-    //    fputs("", out);
-    //    for (i = 0; i < classList.size(); ++i) {
-    //        Generator generator(&classList[i], metaTypes, knownQObjectClasses, knownGadgets, out);
-    //        generator.generateCode();
-    //    }
-    //    fputs("", out);
-    //
-    //    fprintf(out, "QT_WARNING_POP\n");
-    //    fprintf(out, "QT_END_MOC_NAMESPACE\n");
+    //    fprintf(out,
+    //            "#if !defined(Q_MOC_OUTPUT_REVISION)\n"
+    //            "#error \"The header file '%s' doesn't include <QObject>.\"\n",
+    //            fn.constData());
+    //    fprintf(out, "#elif Q_MOC_OUTPUT_REVISION != %d\n", mocOutputRevision);
+    //    fprintf(out,
+    //            "#error \"This file was generated using the moc from %s."
+    //            " It\"\n#error \"cannot be used with the include files from"
+    //            " this version of Qt.\"\n#error \"(The moc has changed too"
+    //            " much.)\"\n",
+    //            QT_VERSION_STR);
+    //    fprintf(out, "#endif\n\n");
+
+    fprintf(out, "\n\n");
+
+    Generator generator(&rootEnv, out);
+    generator.generateCode();
 
     if (jsonOutput) {
         QJsonObject mocData;
         mocData[QLatin1String("outputRevision")] = APP_VERSION;
         mocData[QLatin1String("inputFile")] = QLatin1String(fn.constData());
 
-        QJsonArray classesJsonFormatted;
-
-        for (const ClassDef &cdef : qAsConst(classList))
-            classesJsonFormatted.append(cdef.toJson());
-
-        if (!classesJsonFormatted.isEmpty())
-            mocData[QLatin1String("classes")] = classesJsonFormatted;
-
-        QJsonArray enumsObj;
-        for (const auto &edef : qAsConst(globalEnums)) {
-            enumsObj.append(edef.toJson({}));
-        }
-        mocData.insert("enums", enumsObj);
+        mocData.insert("environment", encodeEnv(&rootEnv));
 
         QJsonDocument jsonDoc(mocData);
         fputs(jsonDoc.toJson().constData(), jsonOutput);
@@ -1040,31 +989,35 @@ QJsonObject ClassDef::toJson() const {
     cls[QLatin1String("qualifiedClassName")] = QString::fromUtf8(qualified.constData());
 
     QJsonArray memberInfos;
-    for (int i = 0; i < memberVars.size(); ++i) {
+    for (const auto &member : qAsConst(memberVars)) {
         QJsonObject obj;
-        obj.insert("name", QString::fromUtf8(memberVars[i].name));
-        obj.insert("typeName", QString::fromUtf8(memberVars[i].type.name));
-        obj.insert("attr", QString::fromUtf8(memberVarAttrs[i]));
+        obj.insert("name", QString::fromUtf8(member.name));
+        obj.insert("typeName", QString::fromUtf8(member.type.name));
+        obj.insert("attr", QString::fromUtf8(member.attr));
+        obj.insert("ignore", member.ignore);
+        obj.insert("access", member.access);
         memberInfos.append(obj);
     }
-    cls.insert("memberInfos", memberInfos);
+    if (!memberInfos.isEmpty()) {
+        cls.insert("memberInfos", memberInfos);
+    }
 
-    const auto appendFunctions = [&cls](const QString &type, const QVector<FunctionDef> &funcs) {
-        QJsonArray jsonFuncs;
+    //    const auto appendFunctions = [&cls](const QString &type, const QVector<FunctionDef>
+    //    &funcs) {
+    //        QJsonArray jsonFuncs;
+    //
+    //        for (const FunctionDef &fdef : funcs)
+    //            jsonFuncs.append(fdef.toJson());
+    //
+    //        if (!jsonFuncs.isEmpty())
+    //            cls[type] = jsonFuncs;
+    //    };
+    //
+    //    appendFunctions(QLatin1String("signals"), signalList);
+    //    appendFunctions(QLatin1String("slots"), slotList);
+    //    appendFunctions(QLatin1String("constructors"), constructorList);
+    //    appendFunctions(QLatin1String("methods"), methodList);
 
-        for (const FunctionDef &fdef : funcs)
-            jsonFuncs.append(fdef.toJson());
-
-        if (!jsonFuncs.isEmpty())
-            cls[type] = jsonFuncs;
-    };
-
-    appendFunctions(QLatin1String("signals"), signalList);
-    appendFunctions(QLatin1String("slots"), slotList);
-    appendFunctions(QLatin1String("constructors"), constructorList);
-    appendFunctions(QLatin1String("methods"), methodList);
-
-    QJsonArray props;
     QJsonArray superClasses;
 
     for (const auto &super : qAsConst(superclassList)) {
@@ -1079,25 +1032,19 @@ QJsonObject ClassDef::toJson() const {
     if (!superClasses.isEmpty())
         cls[QLatin1String("superClasses")] = superClasses;
 
-    QJsonArray enums;
-    for (const EnumDef &enumDef : qAsConst(enumList))
-        enums.append(enumDef.toJson(*this));
-    if (!enums.isEmpty())
-        cls[QLatin1String("enums")] = enums;
-
-    QJsonArray ifaces;
-    for (const QVector<Interface> &ifaceList : interfaceList) {
-        QJsonArray jsonList;
-        for (const Interface &iface : ifaceList) {
-            QJsonObject ifaceJson;
-            ifaceJson[QLatin1String("id")] = QString::fromUtf8(iface.interfaceId);
-            ifaceJson[QLatin1String("className")] = QString::fromUtf8(iface.className);
-            jsonList.append(ifaceJson);
-        }
-        ifaces.append(jsonList);
-    }
-    if (!ifaces.isEmpty())
-        cls[QLatin1String("interfaces")] = ifaces;
+    //    QJsonArray ifaces;
+    //    for (const QVector<Interface> &ifaceList : interfaceList) {
+    //        QJsonArray jsonList;
+    //        for (const Interface &iface : ifaceList) {
+    //            QJsonObject ifaceJson;
+    //            ifaceJson[QLatin1String("id")] = QString::fromUtf8(iface.interfaceId);
+    //            ifaceJson[QLatin1String("className")] = QString::fromUtf8(iface.className);
+    //            jsonList.append(ifaceJson);
+    //        }
+    //        ifaces.append(jsonList);
+    //    }
+    //    if (!ifaces.isEmpty())
+    //        cls[QLatin1String("interfaces")] = ifaces;
 
     return cls;
 }
@@ -1143,23 +1090,22 @@ QJsonObject ArgumentDef::toJson() const {
     return arg;
 }
 
-QJsonObject EnumDef::toJson(const ClassDef &cdef) const {
+QJsonObject EnumDef::toJson() const {
     QJsonObject def;
     def[QLatin1String("name")] = QString::fromUtf8(name);
     if (!enumName.isEmpty())
         def[QLatin1String("alias")] = QString::fromUtf8(enumName);
-    def[QLatin1String("isFlag")] = cdef.enumDeclarations.value(name);
     def[QLatin1String("isClass")] = isEnumClass;
     if (isEnumClass) {
         def.insert("typeName", QString::fromUtf8(enumType.name));
     }
 
     QJsonArray valueArr;
-    for (int i = 0; i < values.size(); ++i) {
+    for (const auto &val : qAsConst(values)) {
         QJsonObject obj;
-        obj.insert("name", QString::fromUtf8(values.at(i)));
-        obj.insert("attr", QString::fromUtf8(attrList.at(i)));
-        obj.insert("ignore", ignoreList.at(i));
+        obj.insert("name", QString::fromUtf8(val.name));
+        obj.insert("attr", QString::fromUtf8(val.attr));
+        obj.insert("ignore", val.ignore);
         valueArr.append(obj);
     }
     if (!valueArr.isEmpty()) {
