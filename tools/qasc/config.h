@@ -1,6 +1,7 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
+
 #define QAS_JSON_VERSION                APP_VERSION
 
 #define QAS_JSON_MACRO_DEFINE           QAS_JSON
