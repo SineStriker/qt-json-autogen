@@ -4,13 +4,13 @@
 #include "qas_enum_types.h"
 #include "qas_json_types.h"
 
-// ======================================= Json Macros =======================================
+#ifndef QT_AUTO_SERIALIZATION_COMPILER_RUN
 
-#define QAS_JSON_PROPERTY(T)
+#define QAS_ATTRIBUTE(ATTR)
 
-#define QAS_JSON_IGNORE
+#define QAS_IGNORE
 
-#define QAS_JSON_TYPE_DECLARE(TYPE)                                                                \
+#define QAS_JSON_DECLARE(TYPE)                                                                     \
     template <>                                                                                    \
     struct QASJsonType<TYPE> {                                                                     \
         enum {                                                                                     \
@@ -30,34 +30,30 @@
             return toObject(val);                                                                  \
         }                                                                                          \
                                                                                                    \
-        QAS_JSON_TYPE_DESERIALIZER                                                                 \
         static TYPE fromObject(const QJsonObject &obj, bool *ok = nullptr);                        \
                                                                                                    \
-        QAS_JSON_TYPE_SERIALIZER                                                                   \
         static QJsonObject toObject(const TYPE &obj);                                              \
     };
 
 
-
-// ======================================= Enum Macros =======================================
-
-#define QAS_ENUM_PROPERTY(T)
-
-#define QAS_ENUM_IGNORE
-
-#define QAS_ENUM_TYPE_DECLARE(TYPE)                                                                \
+#define QAS_ENUM_DECLARE(TYPE)                                                                     \
     template <>                                                                                    \
     struct QASEnumType<TYPE> {                                                                     \
         enum {                                                                                     \
             Defined = 1,                                                                           \
         };                                                                                         \
                                                                                                    \
-        QAS_ENUM_TYPE_DESERIALIZER                                                                 \
         static TYPE fromString(const QString &s, bool *ok = nullptr);                              \
                                                                                                    \
-        QAS_ENUM_TYPE_SERIALIZER                                                                   \
         static QString toString(TYPE e);                                                           \
     };
+
+#else
+#define QAS_ATTRIBUTE(ATTR) QAS_ATTRIBUTE(ATTR)
+#define QAS_IGNORE QAS_IGNORE
+#define QAS_JSON_DECLARE(TYPE) QAS_JSON_DECLARE(TYPE)
+#define QAS_ENUM_DECLARE(TYPE) QAS_ENUM_DECLARE(TYPE)
+#endif
 
 
 #endif // QAS_H

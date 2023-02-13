@@ -29,8 +29,8 @@
 
 set -ex
 
-qmake
-make
+# qmake
+# make
 cat licenseheader.txt > ../keywords.cpp
 cat licenseheader.txt > ../ppkeywords.cpp
 ./generate_keywords >> ../keywords.cpp

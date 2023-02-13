@@ -180,14 +180,10 @@ QT_BEGIN_NAMESPACE
     F(Q_PRIVATE_PROPERTY_TOKEN)                                                                    \
     F(Q_REVISION_TOKEN)                                                                            \
     /* Add QAS macros begin */                                                                     \
-    F(QAS_JSON_TYPE_SERIALIZER_TOKEN)                                                              \
-    F(QAS_JSON_TYPE_DESERIALIZER_TOKEN)                                                            \
-    F(QAS_JSON_PROPERTY_TOKEN)                                                                     \
-    F(QAS_JSON_IGNORE_TOKEN)                                                                       \
-    F(QAS_ENUM_TYPE_SERIALIZER)                                                                    \
-    F(QAS_ENUM_TYPE_DESERIALIZER)                                                                  \
-    F(QAS_ENUM_PROPERTY_TOKEN)                                                                     \
-    F(QAS_ENUM_IGNORE_TOKEN)                                                                       \
+    F(QAS_ATTRIBUTE_TOKEN)                                                                         \
+    F(QAS_IGNORE_TOKEN)                                                                            \
+    F(QAS_JSON_DECLARE_TOKEN)                                                                      \
+    F(QAS_ENUM_DECLARE_TOKEN)                                                                      \
     /* Add QAS macros end */                                                                       \
     F(SPECIAL_TREATMENT_MARK)                                                                      \
     F(MOC_INCLUDE_BEGIN)                                                                           \

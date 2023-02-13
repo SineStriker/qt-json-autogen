@@ -906,13 +906,13 @@ void Moc::parse()
 
             next(RBRACE);
 
-            if (!def.hasQObject && !def.hasQGadget && def.signalList.isEmpty() && def.slotList.isEmpty()
-                && def.propertyList.isEmpty() && def.enumDeclarations.isEmpty())
-                continue; // no meta object code required
+            // if (!def.hasQObject && !def.hasQGadget && def.signalList.isEmpty() && def.slotList.isEmpty()
+            //     && def.propertyList.isEmpty() && def.enumDeclarations.isEmpty())
+            //     continue; // no meta object code required
 
 
-            if (!def.hasQObject && !def.hasQGadget)
-                error("Class declaration lacks Q_OBJECT macro.");
+            // if (!def.hasQObject && !def.hasQGadget)
+            //     error("Class declaration lacks Q_OBJECT macro.");
 
             // Add meta tags to the plugin meta data:
             if (!def.pluginData.iid.isEmpty())

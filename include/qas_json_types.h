@@ -10,10 +10,6 @@
 #include <map>
 #include <unordered_map>
 
-#define QAS_JSON_TYPE_SERIALIZER
-
-#define QAS_JSON_TYPE_DESERIALIZER
-
 template <class T>
 struct QASJsonTypeDefault {
     enum {

@@ -1,45 +1,7 @@
 #include <QCoreApplication>
 #include <QJsonDocument>
 
-#include "qas.h"
-
-#include <set>
-
-enum TestEnum {
-    // Member using explict specified property name
-    QAS_ENUM_PROPERTY(alice) Alice,
-
-    // Member using default property name
-    Bob,
-
-    // Member ignored
-    QAS_ENUM_IGNORE Mark,
-};
-
-QAS_ENUM_TYPE_DECLARE(TestEnum)
-
-class TestClass {
-public:
-    TestClass() {
-    }
-
-    ~TestClass() {
-    }
-
-public:
-    // Member using explict specified property name
-    QAS_JSON_PROPERTY(alice)
-    QString Alice;
-
-    // Member using default property name
-    QString Bob;
-
-    // Member ignored
-    QAS_JSON_IGNORE
-    QString Mark;
-};
-
-QAS_JSON_TYPE_DECLARE(TestClass)
+#include "testobj.h"
 
 int main(int argc, char *argv[]) {
     QCoreApplication a(argc, argv);
