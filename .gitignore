@@ -46,3 +46,5 @@ cache
 out/
 CMakeSettings.json
 /vcpkg
+
+.natvis
