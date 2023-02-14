@@ -5,12 +5,19 @@ QDspx::ClipRef QASJsonType<QDspx::ClipRef>::fromObject(const QJsonObject &obj, b
     if (it == obj.end()) {
         return {};
     }
-    QString type = it->toString().toLower();
-    if (type == "singing") {
+
+    bool ok2;
+    auto type = QASJsonType<QDspx::Clip::Type>::fromValue(it.value(), &ok2);
+    if (!ok2) {
+        return {};
+    }
+
+    if (type == QDspx::Clip::Singing) {
         return QDspx::SingingClipRef::create(QASJsonType<QDspx::SingingClip>::fromObject(obj, ok));
-    } else if (type == "audio") {
+    } else if (type == QDspx::Clip::Audio) {
         return QDspx::AudioClipRef::create(QASJsonType<QDspx::AudioClip>::fromObject(obj, ok));
     }
+
     return {};
 }
 

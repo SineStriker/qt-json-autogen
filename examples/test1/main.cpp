@@ -2,6 +2,7 @@
 #include <QJsonDocument>
 
 #include "testobj.h"
+#include "classroom.h"
 
 #include "Model/QDspxModel.h"
 
@@ -10,11 +11,31 @@
 int main(int argc, char *argv[]) {
     QCoreApplication a(argc, argv);
 
+    Classroom cr;
+    cr.className = "201";
+    cr.slogan = "Keep calm and carry on.";
+
+    Classroom::Student alice;
+    alice.name = "Alice";
+    alice.gender = Classroom::Student::Female;
+    alice.Height = 165;
+
+    Classroom::Student bob;
+    bob.name = "Bob";
+    bob.gender = Classroom::Student::Male;
+    bob.Height = 180;
+
+    cr.students = {alice, bob};
+
+    qDebug().noquote() << QJsonDocument(QASJsonType<Classroom>::toObject(cr)).toJson();
+
     // Enumeration serialize
     qDebug() << QASEnumType<TestEnum>::toString(TestEnum::Alice);
 
     // Enumeration deserialize
     qDebug() << QASEnumType<TestEnum>::fromString("Bob");
+
+    qDebug() << QASJsonType<QStringList>::fromValue("1");
 
     std::set<int> s;
 

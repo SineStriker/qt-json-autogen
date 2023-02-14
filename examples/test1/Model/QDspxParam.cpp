@@ -5,6 +5,7 @@ QDspx::ParamCurveRef QASJsonType<QDspx::ParamCurveRef>::fromObject(const QJsonOb
     if (it == obj.end()) {
         return {};
     }
+
     bool ok2;
     auto type = QASJsonType<QDspx::ParamCurve::Type>::fromValue(it.value(), &ok2);
     if (!ok2) {
