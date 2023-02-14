@@ -50,8 +50,11 @@ namespace QDspx {
 
     // 参数结构
     struct DSCORE_API ParamInfo {
+        QAS_ATTRIBUTE("original")
         QList<ParamCurveRef> org;
+
         QList<ParamCurveRef> edited;
+
         QList<ParamCurveRef> envelope;
     };
 

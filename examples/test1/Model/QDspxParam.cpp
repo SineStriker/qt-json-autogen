@@ -5,12 +5,21 @@ QDspx::ParamCurveRef QASJsonType<QDspx::ParamCurveRef>::fromObject(const QJsonOb
     if (it == obj.end()) {
         return {};
     }
-    QString type = it->toString().toLower();
-    if (type == "anchor") {
-        return QDspx::ParamAnchorRef::create(QASJsonType<QDspx::ParamAnchor>::fromObject(obj, ok));
-    } else if (type == "free") {
-        return QDspx::ParamFreeRef::create(QASJsonType<QDspx::ParamFree>::fromObject(obj, ok));
+    bool ok2;
+    auto type = QASJsonType<QDspx::ParamCurve::Type>::fromValue(it.value(), &ok2);
+    if (!ok2) {
+        return {};
     }
+
+    switch (type) {
+        case QDspx::ParamCurve::Anchor:
+            return QDspx::ParamAnchorRef::create(QASJsonType<QDspx::ParamAnchor>::fromObject(obj, ok));
+        case QDspx::ParamCurve::Free:
+            return QDspx::ParamFreeRef::create(QASJsonType<QDspx::ParamFree>::fromObject(obj, ok));
+        default:
+            break;
+    }
+
     return {};
 }
 
@@ -19,6 +28,6 @@ QJsonObject QASJsonType<QDspx::ParamCurveRef>::toObject(const QDspx::ParamCurveR
         return {};
     }
     return cls->type == QDspx::ParamCurve::Anchor
-               ? QASJsonType<QDspx::ParamAnchor>::toObject(*cls.dynamicCast<QDspx::ParamAnchor>())
-               : QASJsonType<QDspx::ParamFree>::toObject(*cls.dynamicCast<QDspx::ParamFree>());
+           ? QASJsonType<QDspx::ParamAnchor>::toObject(*cls.dynamicCast<QDspx::ParamAnchor>())
+           : QASJsonType<QDspx::ParamFree>::toObject(*cls.dynamicCast<QDspx::ParamFree>());
 }

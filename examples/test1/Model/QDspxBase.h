@@ -57,6 +57,8 @@ namespace QDspx {
 
     using IntPoint = Point<int>;
 
+    using DoublePoint = Point<double>;
+
     // 控制点
     struct DSCORE_API AnchorPoint : public QDspx::IntPoint {
         enum Interpolation {
@@ -85,6 +87,8 @@ QAS_JSON_DECLARE(QDspx::Control)
 QAS_JSON_DECLARE(QDspx::TrackControl)
 
 QAS_JSON_DECLARE(QDspx::Point<int>)
+
+QAS_JSON_DECLARE(QDspx::Point<double>)
 
 QAS_JSON_DECLARE(QDspx::AnchorPoint)
 

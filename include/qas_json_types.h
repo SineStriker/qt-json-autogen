@@ -10,20 +10,16 @@
 #include <map>
 #include <unordered_map>
 
-#ifndef QAS_DISABLE_DEBUG
-#define qasDebug qDebug
-#else
-#define qasDebug QT_NO_QDEBUG_MACRO
-#endif
+#include "qas_basic.h"
 
-template<class T>
+template <class T>
 struct QASJsonTypeDefault {
     enum {
         Defined = 0,
     };
 };
 
-template<class T>
+template <class T>
 struct QASJsonType : public QASJsonTypeDefault<T> //
 {                                                 //
 };
@@ -38,14 +34,16 @@ struct QASJsonType : public QASJsonTypeDefault<T> //
         static TYPE fromValue(const QJsonValue &val, bool *ok = nullptr) {                         \
             if (!val.is##IDENTIFIER()) {                                                           \
                 qasDebug() << #TYPE ": expect " #TYPE ", but get" << val.type();                   \
-                ok ? (*ok = false) : false;                                                        \
+                QAS_SET_OK(ok, false);                                                             \
                 return TYPE{};                                                                     \
             }                                                                                      \
-            ok ? (*ok = true) : false;                                                             \
+            QAS_SET_OK(ok, true);                                                                  \
             return val.to##IDENTIFIER();                                                           \
         }                                                                                          \
                                                                                                    \
-        static QJsonValue toValue(const TYPE &val) { return QJsonValue(val); }                     \
+        static QJsonValue toValue(const TYPE &val) {                                               \
+            return QJsonValue(val);                                                                \
+        }                                                                                          \
     };
 
 #define QAS_JSON_QT_BASIC_TYPE_DECLARE(TYPE)                                                       \
@@ -59,14 +57,16 @@ struct QASJsonType : public QASJsonTypeDefault<T> //
             QVariant tmp = val.toVariant();                                                        \
             if (tmp.type() != qMetaTypeId<TYPE>()) {                                               \
                 qasDebug() << #TYPE ": expect " #TYPE ", but get" << tmp.type();                   \
-                ok ? (*ok = false) : false;                                                        \
+                QAS_SET_OK(ok, false);                                                             \
                 return TYPE{};                                                                     \
             }                                                                                      \
-            ok ? (*ok = true) : false;                                                             \
+            QAS_SET_OK(ok, true);                                                                  \
             return tmp.value<TYPE>();                                                              \
         }                                                                                          \
                                                                                                    \
-        static QJsonValue toValue(const TYPE &val) { return QJsonValue(val); }                     \
+        static QJsonValue toValue(const TYPE &val) {                                               \
+            return QJsonValue(val);                                                                \
+        }                                                                                          \
     };
 
 #define QAS_JSON_QT_MAP_TYPE_DECLARE(TYPE)                                                         \
@@ -79,14 +79,16 @@ struct QASJsonType : public QASJsonTypeDefault<T> //
         static TYPE<QString, T> fromValue(const QJsonValue &val, bool *ok = nullptr) {             \
             if (!val.isObject()) {                                                                 \
                 qasDebug() << #TYPE "<QString, T>: expect object, but get" << val.type();          \
-                ok ? (*ok = false) : false;                                                        \
+                QAS_SET_OK(ok, false);                                                             \
                 return {};                                                                         \
             }                                                                                      \
-            ok ? (*ok = true) : false;                                                             \
+            QAS_SET_OK(ok, true);                                                                  \
             return fromObject(val.toObject(), ok);                                                 \
         }                                                                                          \
                                                                                                    \
-        static QJsonValue toValue(const TYPE<QString, T> &val) { return toObject(val); }           \
+        static QJsonValue toValue(const TYPE<QString, T> &val) {                                   \
+            return toObject(val);                                                                  \
+        }                                                                                          \
                                                                                                    \
         static TYPE<QString, T> fromObject(const QJsonObject &obj, bool *ok = nullptr) {           \
             TYPE<QString, T> res;                                                                  \
@@ -94,7 +96,7 @@ struct QASJsonType : public QASJsonTypeDefault<T> //
             for (auto it = obj.begin(); it != obj.end(); ++it) {                                   \
                 auto tmp = QASJsonType<T>::fromValue(it.value(), &ok2);                            \
                 if (!ok2) {                                                                        \
-                    qasDebug() << #TYPE "<QString, T>: fail at key" << it.key();                 \
+                    qasDebug() << #TYPE "<QString, T>: fail at key" << it.key();                   \
                     res.clear();                                                                   \
                     break;                                                                         \
                 }                                                                                  \
@@ -122,15 +124,17 @@ struct QASJsonType : public QASJsonTypeDefault<T> //
                                                                                                    \
         static TYPE<QString, T> fromValue(const QJsonValue &val, bool *ok = nullptr) {             \
             if (!val.isObject()) {                                                                 \
-                qasDebug() << #TYPE "<QString, T>: expect object, but get" << val.type();        \
-                ok ? (*ok = false) : false;                                                        \
+                qasDebug() << #TYPE "<QString, T>: expect object, but get" << val.type();          \
+                QAS_SET_OK(ok, false);                                                             \
                 return {};                                                                         \
             }                                                                                      \
-            ok ? (*ok = true) : false;                                                             \
+            QAS_SET_OK(ok, true);                                                                  \
             return fromObject(val.toObject(), ok);                                                 \
         }                                                                                          \
                                                                                                    \
-        static QJsonValue toValue(const TYPE<QString, T> &obj) { return toObject(obj); }           \
+        static QJsonValue toValue(const TYPE<QString, T> &obj) {                                   \
+            return toObject(obj);                                                                  \
+        }                                                                                          \
                                                                                                    \
         static TYPE<QString, T> fromObject(const QJsonObject &obj, bool *ok = nullptr) {           \
             TYPE<QString, T> res;                                                                  \
@@ -138,7 +142,7 @@ struct QASJsonType : public QASJsonTypeDefault<T> //
             for (auto it = obj.begin(); it != obj.end(); ++it) {                                   \
                 auto tmp = QASJsonType<T>::fromValue(it.value(), &ok2);                            \
                 if (!ok2) {                                                                        \
-                    qasDebug() << #TYPE "<QString, T>: fail at key" << it.key();                 \
+                    qasDebug() << #TYPE "<QString, T>: fail at key" << it.key();                   \
                     res.clear();                                                                   \
                     break;                                                                         \
                 }                                                                                  \
@@ -166,15 +170,17 @@ struct QASJsonType : public QASJsonTypeDefault<T> //
                                                                                                    \
         static TYPE<T> fromValue(const QJsonValue &val, bool *ok = nullptr) {                      \
             if (!val.isArray()) {                                                                  \
-                qasDebug() << #TYPE "<T>: expect array, but get" << val.type();                  \
-                ok ? (*ok = false) : false;                                                        \
+                qasDebug() << #TYPE "<T>: expect array, but get" << val.type();                    \
+                QAS_SET_OK(ok, false);                                                             \
                 return {};                                                                         \
             }                                                                                      \
-            ok ? (*ok = true) : false;                                                             \
+            QAS_SET_OK(ok, true);                                                                  \
             return fromArray(val.toArray(), ok);                                                   \
         }                                                                                          \
                                                                                                    \
-        static QJsonValue toValue(const TYPE<T> &val) { return toArray(val); }                     \
+        static QJsonValue toValue(const TYPE<T> &val) {                                            \
+            return toArray(val);                                                                   \
+        }                                                                                          \
                                                                                                    \
         static TYPE<T> fromArray(const QJsonArray &arr, bool *ok = nullptr) {                      \
             TYPE<T> res;                                                                           \
@@ -183,7 +189,7 @@ struct QASJsonType : public QASJsonTypeDefault<T> //
             for (const auto &item : arr) {                                                         \
                 auto tmp = QASJsonType<T>::fromValue(item, &ok2);                                  \
                 if (!ok2) {                                                                        \
-                    qasDebug() << #TYPE "<T>: fail at index" << idx;                             \
+                    qasDebug() << #TYPE "<T>: fail at index" << idx;                               \
                     res.clear();                                                                   \
                     break;                                                                         \
                 }                                                                                  \
@@ -212,28 +218,30 @@ struct QASJsonType : public QASJsonTypeDefault<T> //
                                                                                                    \
         static TYPE fromValue(const QJsonValue &val, bool *ok = nullptr) {                         \
             if (!val.isObject()) {                                                                 \
-                ok ? (*ok = false) : false;                                                        \
+                QAS_SET_OK(ok, false);                                                             \
                 return {};                                                                         \
             }                                                                                      \
-            ok ? (*ok = true) : false;                                                             \
+            QAS_SET_OK(ok, true);                                                                  \
             return fromObject(val.toObject(), ok);                                                 \
         }                                                                                          \
                                                                                                    \
-        static QJsonValue toValue(const TYPE &val) { return toObject(val); }                       \
+        static QJsonValue toValue(const TYPE &val) {                                               \
+            return toObject(val);                                                                  \
+        }                                                                                          \
                                                                                                    \
         static TYPE fromObject(const QJsonObject &obj, bool *ok = nullptr);                        \
                                                                                                    \
         static QJsonObject toObject(const TYPE &cls);                                              \
     };
 
-template<>
+template <>
 struct QASJsonType<QJsonValue> {
     enum {
         Defined = 1,
     };
 
     static QJsonValue fromValue(const QJsonValue &val, bool *ok = nullptr) {
-        ok ? (*ok = true) : false;
+        QAS_SET_OK(ok, true);
         return val;
     }
 

@@ -50,21 +50,16 @@ int main(int argc, char *argv[]) {
             QDspxModel model = QASJsonType<QDspxModel>::fromObject(doc.object(), &ok);
             if (ok) {
                 qDebug() << model.metadata.name;
+                QFile file("2.json");
+                if (file.open(QIODevice::WriteOnly)) {
+                    file.write(QJsonDocument(QASJsonType<QDspxModel>::toObject(model)).toJson());
+                }
+                file.close();
             } else {
                 qDebug() << "Failed";
             }
         }
     }
     out:
-
-    QJsonObject obj{
-            {"a", QJsonObject({{"app", QJsonArray{1, 2}}})},
-            {"b", QJsonObject{}},
-    };
-
-    bool ok1;
-    auto map = QASJsonType<QMap<QString, QJsonObject>>::fromObject(obj, &ok1);
-    qDebug() << ok1;
-
     return 0;
 }

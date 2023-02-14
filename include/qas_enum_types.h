@@ -28,7 +28,7 @@ struct QASEnumType : public QASEnumTypeDefault<T> //
             if (val.isNull()) {                                                                    \
                 return TYPE{};                                                                     \
             } else if (!val.isString()) {                                                          \
-                ok ? (*ok = false) : false;                                                        \
+                QAS_SET_OK(ok, false);                                                             \
                 return TYPE{};                                                                     \
             }                                                                                      \
             return QASEnumType<TYPE>::fromString(val.toString(), ok);                              \

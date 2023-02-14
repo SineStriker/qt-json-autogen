@@ -32,14 +32,17 @@ void Generator::generateCode() {
     std::list<QPair<QByteArrayList, Environment *>> stack;
     stack.push_back(qMakePair(QByteArrayList(), rootEnv));
 
-    QHash<QByteArray, QByteArray> classToGen2;
-    for (const auto &name : qAsConst(rootEnv->classToGen)) {
-        auto nameWithoutSpec = removeTemplateSpec(name);
-        if (nameWithoutSpec.isEmpty()) {
-            continue;
-        }
-        classToGen2.insert(nameWithoutSpec, name);
-    }
+    //    QHash<QByteArray, QByteArray> classToGen2;
+    //    for (const auto &name : qAsConst(rootEnv->classToGen)) {
+    //        auto nameWithoutSpec = removeTemplateSpec(name);
+    //        if (nameWithoutSpec.isEmpty()) {
+    //            continue;
+    //        }
+    //        classToGen2.insert(nameWithoutSpec, name);
+    //    }
+
+    QMap<QByteArray, ClassDef> classes;
+    QMap<QByteArray, EnumDef> enums;
 
     while (!stack.empty()) {
         auto pair = stack.front();
@@ -51,19 +54,14 @@ void Generator::generateCode() {
         // Handle current enumerations
         for (const auto &item : qAsConst(env->enums)) {
             QByteArray qualified = (QByteArrayList(names) << item.name).join("::");
-            if (rootEnv->enumToGen.contains(qualified)) {
-                generateEnums(qualified, item);
-            }
+            enums.insert(qualified, item);
         }
 
         // Handle current classes
         if (!env->cl.isNull()) {
             const auto &cl = *env->cl;
             QByteArray qualified = names.join("::");
-            auto it = classToGen2.find(qualified);
-            if (it != classToGen2.end()) {
-                generateClass(it.value(), cl);
-            }
+            classes.insert(qualified, cl);
         }
 
         // Push all children
@@ -74,11 +72,36 @@ void Generator::generateCode() {
             stack.push_back(qMakePair(newNames, child.data()));
         }
     }
+
+    // Generate all enums
+    for (const auto &q : qAsConst(rootEnv->enumToGen)) {
+        auto it = enums.find(q);
+        if (it == enums.end()) {
+            continue;
+        }
+        generateEnums(q, it.value());
+    }
+
+    // Generate all classes
+    for (const auto &q : qAsConst(rootEnv->classToGen)) {
+        auto it = classes.find(removeTemplateSpec(q));
+        if (it == classes.end()) {
+            continue;
+        }
+        generateClass(q, it.value());
+    }
 }
 
 void Generator::generateEnums(const QByteArray &qualified, const EnumDef &def) {
     const char *fmt;
     const char *type_str = qualified.data();
+
+    // Title
+    {
+        QByteArray title = "// Deserializer and serializer for enumeration " + QByteArray(type_str);
+        QByteArray line = "//" + QByteArray(title.size() + 10, '=');
+        fprintf(fp, "%s\n%s\n%s\n\n", line.data(), title.data(), line.data());
+    }
 
     // Generate deserializer
     // Declaration head
@@ -112,7 +135,7 @@ void Generator::generateEnums(const QByteArray &qualified, const EnumDef &def) {
     // Last and end
     fprintf(fp, "        ok2 = false;\n"
                 "    }\n"
-                "    ok ? (*ok = ok2) : false;\n"
+                "    QAS_SET_OK(ok, ok2);\n"
                 "    return res;\n"
                 "}\n");
 
@@ -146,12 +169,19 @@ void Generator::generateEnums(const QByteArray &qualified, const EnumDef &def) {
                 "    return res;\n"
                 "}\n");
 
-    fprintf(fp, "\n");
+    fprintf(fp, "\n\n");
 }
 
 void Generator::generateClass(const QByteArray &qualified, const ClassDef &def) {
     const char *fmt;
     const char *type_str = qualified.data();
+
+    // Title
+    {
+        QByteArray title = "// Deserializer and serializer for class " + QByteArray(type_str);
+        QByteArray line = "//" + QByteArray(title.size() + 10, '=');
+        fprintf(fp, "%s\n%s\n%s\n\n", line.data(), title.data(), line.data());
+    }
 
     // Generate deserializer
     // Declaration head
@@ -199,7 +229,7 @@ void Generator::generateClass(const QByteArray &qualified, const ClassDef &def) 
 
     // Last and end
     fprintf(fp, "over:\n"
-                "    ok ? (*ok = ok2) : false;\n"
+                "    QAS_SET_OK(ok, ok2);\n"
                 "    return res;\n"
                 "}\n");
 
@@ -238,5 +268,5 @@ void Generator::generateClass(const QByteArray &qualified, const ClassDef &def) 
     fprintf(fp, "    return res;\n"
                 "}\n");
 
-    fprintf(fp, "\n");
+    fprintf(fp, "\n\n");
 }
