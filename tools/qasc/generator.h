@@ -5,10 +5,12 @@
 
 class Generator {
     Environment *rootEnv;
+    bool debug;
     FILE *fp;
 
 public:
-    explicit Generator(Environment *env, FILE *outfile) : rootEnv(env), fp(outfile){};
+    explicit Generator(Environment *env, bool debug, FILE *outfile)
+        : rootEnv(env), debug(debug), fp(outfile){};
 
     void generateCode();
 
@@ -17,7 +19,5 @@ private:
 
     void generateClass(const QByteArray &qualified, const ClassDef &def);
 };
-
-
 
 #endif // GENERATOR_H

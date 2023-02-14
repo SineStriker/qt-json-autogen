@@ -29,19 +29,29 @@ foreach(_file ${SOURCES})
 endforeach()
 
 get_filename_component(_bin_dir ${QASC_CPP} DIRECTORY)
-
 set(_content)
 
 foreach(_file ${_headers})
     get_filename_component(_name ${_file} NAME_WE)
-    string(RANDOM LENGTH 10 _rand)
-    set(_output "qasc_${_name}_${_rand}.cpp")
-    set(_content "${_content}#include \"${_output}\"\n")
+    string(SHA256 _hash ${_file})
+    set(_output "${_bin_dir}/qasc_${_name}_${_hash}.cpp")
+
+    if(EXISTS ${_output})
+        file(REMOVE ${_output})
+    endif()
 
     execute_process(
-        COMMAND "${QASC_COMMAND}" ${_file} ${_macros} ${_incdirs} -o ${_bin_dir}/${_output}
+        COMMAND "${QASC_COMMAND}" ${_file} ${_macros} ${_incdirs} -o ${_output} --debug
         WORKING_DIRECTORY ${_bin_dir}
     )
+
+    file(SIZE ${_output} _size)
+
+    if(${_size} STREQUAL 0)
+        file(REMOVE ${_output})
+    else()
+        set(_content "${_content}#include \"${_output}\"\n")
+    endif()
 endforeach()
 
 if(EXISTS ${QASC_CPP})

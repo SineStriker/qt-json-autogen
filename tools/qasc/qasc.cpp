@@ -289,9 +289,8 @@ bool Moc::parseEnum(EnumDef *def) {
             auto t = next();
             switch (t) {
                 case QAS_ATTRIBUTE_TOKEN: {
-                    BaseDef def;
-                    parseEnumOrFlag(&def, false);
-                    attr = def.enumDeclarations.begin().key();
+                    parseDeclareType(&attr);
+                    attr.replace("\"", "");
                     next(IDENTIFIER);
                     break;
                 }
@@ -365,6 +364,14 @@ bool Moc::parseMemberVariable(ArgumentDef *def) {
     arg.normalizedType = normalizeType(QByteArray(arg.type.name + ' ' + arg.rightType));
     arg.typeNameForCast = normalizeType(QByteArray(noRef(arg.type.name) + "(*)" + arg.rightType));
     return test(SEMIC);
+}
+
+void Moc::parseDeclareType(QByteArray *name) {
+    next(LPAREN);
+    QByteArray typeName = lexemUntil(RPAREN);
+    typeName.remove(0, 1);
+    typeName.chop(1);
+    *name = typeName;
 }
 
 bool Moc::skipCxxAttributes() {
@@ -606,17 +613,17 @@ void Moc::parseEnv(Environment *env) {
                 }
                 case QAS_ENUM_DECLARE_TOKEN: {
                     if (env->isRoot) {
-                        BaseDef tmpDef;
-                        parseEnumOrFlag(&tmpDef, false);
-                        env->enumToGen.insert(tmpDef.enumDeclarations.begin().key());
+                        QByteArray typeName;
+                        parseDeclareType(&typeName);
+                        env->enumToGen.insert(typeName);
                     }
                     break;
                 }
                 case QAS_JSON_DECLARE_TOKEN: {
                     if (env->isRoot) {
-                        BaseDef tmpDef;
-                        parseEnumOrFlag(&tmpDef, false);
-                        env->classToGen.insert(tmpDef.enumDeclarations.begin().key());
+                        QByteArray typeName;
+                        parseDeclareType(&typeName);
+                        env->classToGen.insert(typeName);
                     }
                     break;
                 }
@@ -707,12 +714,11 @@ void Moc::parseEnv(Environment *env) {
                     QByteArray attr;
                     switch (t) {
                         case QAS_ATTRIBUTE_TOKEN: {
-                            BaseDef baseDef;
-                            parseEnumOrFlag(&baseDef, false);
-                            attr = baseDef.enumDeclarations.begin().key();
+                            parseDeclareType(&attr);
                             if (!hasNext()) {
                                 error("QAS_ATTRIBUTE has no following member.");
                             }
+                            attr.replace("\"", "");
                             next();
                             break;
                         }
@@ -775,6 +781,18 @@ static QJsonObject encodeEnv(Environment *env) {
         for (auto it = classObj.begin(); it != classObj.end(); ++it) {
             envObj.insert(it.key(), it.value());
         }
+    } else {
+        QJsonArray enumNames;
+        for (const auto &item : qAsConst(env->enumToGen)) {
+            enumNames.append(QString::fromUtf8(item));
+        }
+        envObj.insert("declaredEnums", enumNames);
+
+        QJsonArray classNames;
+        for (const auto &item : qAsConst(env->classToGen)) {
+            classNames.append(QString::fromUtf8(item));
+        }
+        envObj.insert("declaredClasses", classNames);
     }
 
     // Children
@@ -836,7 +854,7 @@ void Moc::generate(FILE *out, FILE *jsonOutput) {
 
     fprintf(out, "\n\n");
 
-    Generator generator(&rootEnv, out);
+    Generator generator(&rootEnv, debugMode, out);
     generator.generateCode();
 
     if (jsonOutput) {
@@ -849,20 +867,6 @@ void Moc::generate(FILE *out, FILE *jsonOutput) {
         QJsonDocument jsonDoc(mocData);
         fputs(jsonDoc.toJson().constData(), jsonOutput);
     }
-}
-
-void Moc::parseEnumOrFlag(BaseDef *def, bool isFlag) {
-    next(LPAREN);
-    QByteArray identifier;
-    while (test(IDENTIFIER)) {
-        identifier = lexem();
-        while (test(SCOPE) && test(IDENTIFIER)) {
-            identifier += "::";
-            identifier += lexem();
-        }
-        def->enumDeclarations[identifier] = isFlag;
-    }
-    next(RPAREN);
 }
 
 QByteArray Moc::lexemUntil(Token target) {

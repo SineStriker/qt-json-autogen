@@ -203,8 +203,10 @@ struct Environment {
 
 class Moc : public Parser {
 public:
-    Moc() : noInclude(false) {
+    Moc() : debugMode(false), noInclude(false) {
     }
+
+    bool debugMode;
 
     QByteArray filename;
 
@@ -239,10 +241,9 @@ public:
     bool parseFunction(FunctionDef *def, bool inMacro = false);
     bool parseMaybeFunction(const ClassDef *cdef, FunctionDef *def);
 
-    void parseEnumOrFlag(BaseDef *def, bool isFlag);
-
     void parseFunctionArguments(FunctionDef *def);
     bool parseMemberVariable(ArgumentDef *def);
+    void parseDeclareType(QByteArray *name);
 
     QByteArray lexemUntil(Token);
     bool until(Token);

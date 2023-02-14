@@ -35,6 +35,15 @@ QAS_ENUM_DECLARE(TestEnum)
 
 QAS_ENUM_DECLARE(NS::NSClass::TestNestClass2)
 
+template <class T>
+class TemplateBase {
+public:
+    T x;
+    T y;
+};
+
+QAS_JSON_DECLARE(TemplateBase<int>)
+
 class TestClass {
 public:
     TestClass() {
@@ -57,5 +66,14 @@ public:
 };
 
 QAS_JSON_DECLARE(TestClass)
+
+class TestDerivedClass : public TestClass {
+public:
+    QString Tom;
+};
+
+QAS_JSON_DECLARE(TestDerivedClass)
+
+
 
 #endif // TESTOBJ_H
