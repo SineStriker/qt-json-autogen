@@ -603,6 +603,9 @@ void Moc::parseEnv(Environment *env) {
                             until(RPAREN);
                         next(SEMIC);
                     }
+                    //  else if (test(IDENTIFIER)) {
+                    //     next(EQ);
+                    // }
                     break;
                 case ENUM: {
                     EnumDef enumDef;
@@ -615,7 +618,7 @@ void Moc::parseEnv(Environment *env) {
                     if (env->isRoot) {
                         QByteArray typeName;
                         parseDeclareType(&typeName);
-                        env->enumToGen.insert(typeName);
+                        env->enumToGen.append(typeName);
                     }
                     break;
                 }
@@ -623,7 +626,11 @@ void Moc::parseEnv(Environment *env) {
                     if (env->isRoot) {
                         QByteArray typeName;
                         parseDeclareType(&typeName);
-                        env->classToGen.insert(typeName);
+                        QByteArrayList types = typeName.split(',');
+                        for (auto &type : types) {
+                            type = type.trimmed();
+                        }
+                        env->classToGen.append(qMakePair(types.front(), types.mid(1)));
                     }
                     break;
                 }
@@ -790,7 +797,7 @@ static QJsonObject encodeEnv(Environment *env) {
 
         QJsonArray classNames;
         for (const auto &item : qAsConst(env->classToGen)) {
-            classNames.append(QString::fromUtf8(item));
+            classNames.append(QString::fromUtf8(item.first));
         }
         envObj.insert("declaredClasses", classNames);
     }

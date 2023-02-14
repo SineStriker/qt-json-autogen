@@ -17,7 +17,8 @@ public:
 private:
     void generateEnums(const QByteArray &qualified, const EnumDef &def);
 
-    void generateClass(const QByteArray &qualified, const ClassDef &def);
+    void generateClass(const QByteArray &qualified, const QByteArrayList &supers,
+                       const ClassDef &def);
 };
 
 #endif // GENERATOR_H

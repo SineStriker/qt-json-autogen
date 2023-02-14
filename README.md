@@ -116,6 +116,17 @@ QAS_JSON_DECLARE(Classroom::Student)
 QAS_JSON_DECLARE(Classroom)
 ```
 + Use `QAS_JSON_DECLARE` to define the serializer and deserializer of the class, then it becomes serializable.
+    + Template classes or classes in the scope of a template class with more than one type are not supported.
+
++ If the class is a derived class, only super classes specified after the class will participate in serialization and deserialization. The super class name should be in complete form in global scope.
+    ```c++
+    namespace NS {
+        class Base { ... }
+        class Derived : public Base { ... }
+    }
+    QAS_JSON_DECLARE(NS::Derived, NS::Base)
+    ```
+    + Note that serializable super class should be publicly inherited.
 
 + Use `QAS_ATTRIBUTE` to specify the key of a member in json object ans `QAS_IGNORE` to ignore a member. Only public members participate in serialization and deserialization.
 
@@ -128,9 +139,7 @@ QAS_JSON_DECLARE(Classroom)
 
 + The class must have a default constructor.
 
-+ If the class is a derived class, the super class name should be the complete form at the class definition head, because `qasc` is not able to handle the nested namespace.
-
-+ The `QAS_ENUM_DECLARE` and `QAS_JSON_DECLARE` must be used in the global scope, and the class name or enumeration name in the paren must be the original name, it cannot be a alias defined by `using` or `typedef`.
++ The `QAS_ENUM_DECLARE` and `QAS_JSON_DECLARE` must be used in the global scope, and the class name or enumeration name in the paren must be the original name after macro expansion, it cannot be a alias defined by `using` or `typedef`.
 
 + If there's a class having a conditional serialization method which is too complex for `qasc` to resolve, you need to use `QAS_JSON_DECLARE_IMPL` to define the serializer and deserializer and implement them yourself.
 

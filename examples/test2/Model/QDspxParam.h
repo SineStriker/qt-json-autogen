@@ -26,7 +26,7 @@ namespace QDspx {
     using ParamCurveRef = QSharedPointer<ParamCurve>;
 
     // 手绘参数
-    struct DSCORE_API ParamFree : public QDspx::ParamCurve {
+    struct DSCORE_API ParamFree : public ParamCurve {
         int start;
         int step;
         QList<int> values;
@@ -39,7 +39,7 @@ namespace QDspx {
     using ParamFreeRef = QSharedPointer<ParamFree>;
 
     // 锚点参数
-    struct DSCORE_API ParamAnchor : public QDspx::ParamCurve {
+    struct DSCORE_API ParamAnchor : public ParamCurve {
         QList<AnchorPoint> nodes;
 
         // 构造器
@@ -68,9 +68,9 @@ namespace QDspx {
 
 QAS_JSON_DECLARE(QDspx::ParamCurve)
 
-QAS_JSON_DECLARE(QDspx::ParamFree)
+QAS_JSON_DECLARE(QDspx::ParamFree, QDspx::ParamCurve)
 
-QAS_JSON_DECLARE(QDspx::ParamAnchor)
+QAS_JSON_DECLARE(QDspx::ParamAnchor, QDspx::ParamCurve)
 
 QAS_JSON_DECLARE(QDspx::ParamInfo)
 

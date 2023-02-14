@@ -9,9 +9,11 @@ endif()
 # Add modules
 include(../scripts/cmake/All.cmake)
 
-include(../QasUtils.cmake)
+include(../QasMacros.cmake)
 
 # Add includes
 include_directories(../include)
 
 add_subdirectory(test1)
+
+add_subdirectory(test2)

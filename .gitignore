@@ -31,7 +31,7 @@
 *.out
 *.app
 
-build-src*
+build-*
 build/
 cmake-build*
 *.user

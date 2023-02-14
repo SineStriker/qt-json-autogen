@@ -52,7 +52,7 @@ namespace QDspx {
     using ClipRef = QSharedPointer<Clip>;
 
     // 波形区间
-    struct DSCORE_API AudioClip : public QDspx::Clip {
+    struct DSCORE_API AudioClip : public Clip {
         QString path;
 
         // 构造器
@@ -62,7 +62,7 @@ namespace QDspx {
     using AudioClipRef = QSharedPointer<AudioClip>;
 
     // 人声区间
-    struct DSCORE_API SingingClip : public QDspx::Clip {
+    struct DSCORE_API SingingClip : public Clip {
         QList<Note> notes;
         SingleParam params;
 
@@ -92,9 +92,9 @@ QAS_JSON_DECLARE(QDspx::ClipTime)
 
 QAS_JSON_DECLARE(QDspx::Clip)
 
-QAS_JSON_DECLARE(QDspx::AudioClip)
+QAS_JSON_DECLARE(QDspx::AudioClip, QDspx::Clip)
 
-QAS_JSON_DECLARE(QDspx::SingingClip)
+QAS_JSON_DECLARE(QDspx::SingingClip, QDspx::Clip)
 
 QAS_JSON_DECLARE(QDspx::Track)
 

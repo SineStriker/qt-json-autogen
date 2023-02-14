@@ -1,4 +1,4 @@
-project(test1)
+project(test2)
 
 # ----------------------------------
 # Add modules

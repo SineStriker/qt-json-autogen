@@ -84,11 +84,11 @@ void Generator::generateCode() {
 
     // Generate all classes
     for (const auto &q : qAsConst(rootEnv->classToGen)) {
-        auto it = classes.find(removeTemplateSpec(q));
+        auto it = classes.find(removeTemplateSpec(q.first));
         if (it == classes.end()) {
             continue;
         }
-        generateClass(q, it.value());
+        generateClass(q.first, q.second, it.value());
     }
 }
 
@@ -172,7 +172,8 @@ void Generator::generateEnums(const QByteArray &qualified, const EnumDef &def) {
     fprintf(fp, "\n\n");
 }
 
-void Generator::generateClass(const QByteArray &qualified, const ClassDef &def) {
+void Generator::generateClass(const QByteArray &qualified, const QByteArrayList &supers,
+                              const ClassDef &def) {
     const char *fmt;
     const char *type_str = qualified.data();
 
@@ -195,12 +196,12 @@ void Generator::generateClass(const QByteArray &qualified, const ClassDef &def) 
                 "    bool ok2 = true;\n");
 
     // Super classes
-    for (const auto &super : def.superclassList) {
+    for (const auto &super : supers) {
         fmt = "    *reinterpret_cast<%s *>(&res) = QASJsonType<%s>::fromObject(obj, &ok2);\n"
               "    if (!ok2) {\n"
               "        goto over;\n"
               "    }\n";
-        const char *name_str = super.first.data();
+        const char *name_str = super.data();
         fprintf(fp, fmt, name_str, name_str);
     }
 
@@ -244,12 +245,12 @@ void Generator::generateClass(const QByteArray &qualified, const ClassDef &def) 
     fprintf(fp, "    QJsonObject res, tmp;\n");
 
     // Super classes
-    for (const auto &super : def.superclassList) {
+    for (const auto &super : supers) {
         fmt = "    tmp = QASJsonType<%s>::toObject(cls);\n"
               "    for (auto it = tmp.begin(); it != tmp.end(); ++it) {\n"
               "        res.insert(it.key(), it.value());\n"
               "    }\n";
-        const char *name_str = super.first.data();
+        const char *name_str = super.data();
         fprintf(fp, fmt, name_str);
     }
 

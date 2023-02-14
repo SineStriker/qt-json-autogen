@@ -188,8 +188,8 @@ struct Environment {
     QVector<QSharedPointer<Environment>> children;
     QVector<EnumDef> enums;
 
-    QSet<QByteArray> enumToGen;
-    QSet<QByteArray> classToGen;
+    QList<QByteArray> enumToGen;
+    QList<QPair<QByteArray, QByteArrayList>> classToGen;
 
     Environment() : isRoot(true), isNamespace(false), parent(nullptr) {
     }

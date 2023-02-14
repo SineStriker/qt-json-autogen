@@ -30,7 +30,7 @@ namespace QDspx {
     };
 
     // 音轨主控
-    struct DSCORE_API TrackControl : public QDspx::Control {
+    struct DSCORE_API TrackControl : public Control {
         double pan;
         bool solo;
 
@@ -60,7 +60,7 @@ namespace QDspx {
     using DoublePoint = Point<double>;
 
     // 控制点
-    struct DSCORE_API AnchorPoint : public QDspx::IntPoint {
+    struct DSCORE_API AnchorPoint : public IntPoint {
         enum Interpolation {
             QAS_ATTRIBUTE("none")
             None,
@@ -84,13 +84,13 @@ namespace QDspx {
 
 QAS_JSON_DECLARE(QDspx::Control)
 
-QAS_JSON_DECLARE(QDspx::TrackControl)
+QAS_JSON_DECLARE(QDspx::TrackControl, QDspx::Control)
 
 QAS_JSON_DECLARE(QDspx::Point<int>)
 
 QAS_JSON_DECLARE(QDspx::Point<double>)
 
-QAS_JSON_DECLARE(QDspx::AnchorPoint)
+QAS_JSON_DECLARE(QDspx::AnchorPoint, QDspx::IntPoint)
 
 QAS_ENUM_DECLARE(QDspx::AnchorPoint::Interpolation)
 
