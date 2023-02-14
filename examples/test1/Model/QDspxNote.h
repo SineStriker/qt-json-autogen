@@ -32,7 +32,9 @@ namespace QDspx {
 
     // 音素信息
     struct DSCORE_API PhonemeInfo {
+        QAS_ATTRIBUTE("original")
         QList<Phoneme> org;
+
         QList<Phoneme> edited;
     };
 
@@ -44,7 +46,7 @@ namespace QDspx {
         double phase;
         double amp;
         double offset;
-        QList<IntPoint> points;
+        QList<DoublePoint> points;
 
         // 构造器
         VibratoInfo() : start(0), end(1), freq(2), phase(0), amp(1), offset(0){};
@@ -60,8 +62,8 @@ namespace QDspx {
         VibratoInfo vibrato;
 
         // 不定长信息
-        Extra Extra;
-        Workspace Workspace;
+        Extra extra;
+        Workspace workspace;
 
         // 构造器
         Note() : Note(0, 480, 60){};
