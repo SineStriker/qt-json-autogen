@@ -28,46 +28,45 @@ Generate enumeration converter (to and from QString)
 
 ### Add Into CMake Project
 
-+ Build `qasc`
-
-+ Get `QasBatch.cmake` and `QasUtils.cmake` from the repository
-
-+ Get `include` directory from the repository
-
-+ Edit the header of `QasUtils.cmake`
-    ```sh
-    set(QASC_COMMAND <command> CACHE STRING "Qasc command" FORCE)
-    set(QAS_BATCH_SCRIPT <script> CACHE STRING "Qas batch script" FORCE)
-    ```
-    + Set `<command>` as the absolute path of `qasc`
-    + Set `<script>` as the absolute path of `QasBatch.cmake`
-
-+ Edit your `CMakeLists.txt`
++ Example `CMakeLists.txt`
     ```cmake
-    include(/path/to/QasUtils.cmake)
+    find_package(qastool REQUIRED COMPONENTS qasstream qasc)
 
-    include_directories(/path/to/include)
+    set(_src ...            ) # Add source files
+    set(_headers_for_qas ...) # Headers using QAS macros
 
-    # Add target
+    # Specify your target, for example an exe
+    add_executable(${YOUR_TARGET} ${_src})
 
-    qas_auto_gen(${YOUR_TARGET})
+    # Only use to add include QAS headers directory
+    target_link_libraries(${YOUR_PROJECT} PRIVATE qastool::qasstream)
+    
+    # Tell qasc to preprocess your headers
+    qas_wrap_cpp(_qasc_src ${_headers_for_qas} TARGET ${YOUR_TARGET})
+    
+    # Add auto generated sources to target
+    target_sources(${YOUR_TARGET} PRIVATE ${_qasc_src})
     ```
+
++ Include `qas.h` at the beginning of any headers because the auto generated sources will include your headers and they need other functions defined in `qas.h`.
 
 ### Enumeration Serialization
 
-```c++
-enum Name {
-    QAS_ATTRIBUTE("alice")
-    Alice,
++ Example
 
-    Bob,
+    ```c++
+    enum Name {
+        QAS_ATTRIBUTE("alice")
+        Alice,
 
-    QAS_IGNORE
-    Mark,
-};
+        Bob,
 
-QAS_ENUM_DECLARE(Name)
-```
+        QAS_IGNORE
+        Mark,
+    };
+
+    QAS_ENUM_DECLARE(Name)
+    ```
 + Use `QAS_ENUM_DECLARE` to define the serializer and deserializer of the enumeration, then it becomes serializable.
     ```c++
     Name QASEnumType<Name>::fromString(const QString &s, bool *ok = nullptr);
@@ -80,52 +79,55 @@ QAS_ENUM_DECLARE(Name)
 
 + These macros also tell the `qasc` compiler to generate the implementation of the two required functions automatically.
 
-```c++
-qDebug() << QASEnumType<Name>::toString(Name::Alice);
-qDebug() << QASEnumType<Name>::toString(Name::Bob);
-qDebug() << QASEnumType<Name>::toString(Name::Mark);
-```
-```sh
-"Alice"
-"bob"
-""
-```
+    ```c++
+    qDebug() << QASEnumType<Name>::toString(Name::Alice);
+    qDebug() << QASEnumType<Name>::toString(Name::Bob);
+    qDebug() << QASEnumType<Name>::toString(Name::Mark);
+    ```
+
+    ```sh
+    "Alice"
+    "bob"
+    ""
+    ```
 
 ### Class Serialization
 
-```c++
-class Classroom {
-public:
-    class Student {
++ Example
+    ```c++
+    class Classroom {
     public:
-        enum Gender {
-            Male,
-            Female,
+        class Student {
+        public:
+            enum Gender {
+                Male,
+                Female,
+            };
+
+            QString name;
+            Gender gender;
+            int height;
         };
 
-        QString name;
-        Gender gender;
-        int height;
+        QString className;
+        QString slogan;
+        QList<Student> students;
     };
 
-    QString className;
-    QString slogan;
-    QList<Student> students;
-};
-
-QAS_ENUM_DECLARE(Classroom::Student::Gender)
-QAS_JSON_DECLARE(Classroom::Student)
-QAS_JSON_DECLARE(Classroom)
-```
+    QAS_ENUM_DECLARE(Classroom::Student::Gender)
+    QAS_JSON_DECLARE(Classroom::Student)
+    QAS_JSON_DECLARE(Classroom)
+    ```
 + Use `QAS_JSON_DECLARE` to define the serializer and deserializer of the class, then it becomes serializable.
-    + Template classes or classes in the scope of a template class with more than one type are not supported.
+    + Template classes or classes in the scope of a template class with more than one type are not supported by C style macros, you need to use `using` and then use its alias in the macro.
 
 + If the class is a derived class, all its super classes will participate in serialization and deserialization.
     + The complete form of the super class name will be automatically deduced, but it's recommended to specify completely at the derived class head.
 
     + Note that serializable super class should be publicly inherited.
 
-+ Use `QAS_ATTRIBUTE` to specify the key of a member in json object ans `QAS_IGNORE` to ignore a member. Only public members participate in serialization and deserialization.
++ Use `QAS_ATTRIBUTE` to specify the key of a member in json object and `QAS_IGNORE` to ignore a member.
+    + Only public members participate in serialization and deserialization.
 
 + The member to participating in serialization and deserialization should be one of the following 3:
     1. A serializable class
@@ -160,6 +162,7 @@ QAS_JSON_DECLARE(Classroom)
     QJsonDocument doc(QASJsonType<Classroom>::toObject(cr));
     qDebug().noquote() << doc.toJson();
     ```
+
     ```json
     {
         "className": "201",
