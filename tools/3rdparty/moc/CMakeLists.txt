@@ -56,7 +56,7 @@ target_include_directories(${MOC_LIB_TARGET} PUBLIC $<BUILD_INTERFACE:${CMAKE_CU
 # ----------------------------------
 # moc.pro
 # ----------------------------------
-if(${QT_VERSION_MAJOR} EQUAL 5)
+if((${QT_VERSION_MAJOR} EQUAL 5) AND QAS_BUILD_QT_MOC)
     set(MOC_EXE_TARGET ${PROJECT_NAME})
 
     add_executable(${MOC_EXE_TARGET} moc.h moc.cpp generator.h generator.cpp main.cpp)

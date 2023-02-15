@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.17)
 
-project(qas_tool VERSION 0.0.1.3)
+project(qas_tool VERSION 0.0.1.4)
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
@@ -9,6 +9,7 @@ include(CMakePackageConfigHelpers)
 # Configure Options
 # ----------------------------------
 option(QAS_BUILD_EXAMPLES "Build examples" ON)
+option(QAS_BUILD_MOC_EXE "Build Qt moc executable" ON)
 
 # ----------------------------------
 # Project Configuration

@@ -420,14 +420,19 @@ QAS_JSON_STL_TEMPLATE_MAP_DECLARE(std::unordered_map)
 // List Types
 QAS_JSON_TEMPLATE_LIST_DECLARE(QList)
 
+#if QT_VERSION_MAJON <= 5 // Qt 6 treat QVector as QList
 QAS_JSON_TEMPLATE_LIST_DECLARE(QVector)
+#endif
 
 QAS_JSON_TEMPLATE_LIST_DECLARE(std::list)
 
 QAS_JSON_TEMPLATE_LIST_DECLARE(std::vector)
 
 // Specified List Types
+
+#if QT_VERSION_MAJON <= 5 // Qt 6 treat QStringList as QList<QString>
 QAS_JSON_SPECIFIED_LIST_DECLARE(QStringList)
+#endif
 
 // Specified Map Types
 // ...

@@ -602,7 +602,6 @@ void Moc::parseEnv(Environment *env) {
                     if (env->isRoot && currentFilenames.size() <= 1) {
                         QByteArray typeName;
                         parseDeclareType(&typeName);
-                        qDebug() << typeName;
                         QByteArrayList types = typeName.split(',');
                         for (auto &type : types) {
                             type = type.trimmed();
