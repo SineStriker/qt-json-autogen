@@ -74,7 +74,7 @@ QAS_ENUM_DECLARE(Name)
     QString QASEnumType<Name>::toString(Name e);
     ```
 
-+ The string format of a enumeration value is same as the one in definition, use `QAS_ATTRIBUTE` to override it.
++ The string format of a enumeration value is same as the one in definition, use `QAS_ATTRIBUTE` to override it, the quotes are optional.
 
 + If a enumeration value is marked with `QAS_IGNORE`, then it will be transparent during serialization.
 
@@ -83,10 +83,12 @@ QAS_ENUM_DECLARE(Name)
 ```c++
 qDebug() << QASEnumType<Name>::toString(Name::Alice);
 qDebug() << QASEnumType<Name>::toString(Name::Bob);
+qDebug() << QASEnumType<Name>::toString(Name::Mark);
 ```
 ```sh
-Alice
-bob
+"Alice"
+"bob"
+""
 ```
 
 ### Class Serialization
@@ -118,14 +120,9 @@ QAS_JSON_DECLARE(Classroom)
 + Use `QAS_JSON_DECLARE` to define the serializer and deserializer of the class, then it becomes serializable.
     + Template classes or classes in the scope of a template class with more than one type are not supported.
 
-+ If the class is a derived class, only super classes specified after the class will participate in serialization and deserialization. The super class name should be in complete form in global scope.
-    ```c++
-    namespace NS {
-        class Base { ... }
-        class Derived : public Base { ... }
-    }
-    QAS_JSON_DECLARE(NS::Derived, NS::Base)
-    ```
++ If the class is a derived class, all its super classes will participate in serialization and deserialization.
+    + The complete form of the super class name will be automatically deduced, but it's recommended to specify completely at the derived class head.
+
     + Note that serializable super class should be publicly inherited.
 
 + Use `QAS_ATTRIBUTE` to specify the key of a member in json object ans `QAS_IGNORE` to ignore a member. Only public members participate in serialization and deserialization.
@@ -139,7 +136,7 @@ QAS_JSON_DECLARE(Classroom)
 
 + The class must have a default constructor.
 
-+ The `QAS_ENUM_DECLARE` and `QAS_JSON_DECLARE` must be used in the global scope, and the class name or enumeration name in the paren must be the original name after macro expansion, it cannot be a alias defined by `using` or `typedef`.
++ The `QAS_ENUM_DECLARE` and `QAS_JSON_DECLARE` must be used in the global scope.
 
 + If there's a class having a conditional serialization method which is too complex for `qasc` to resolve, you need to use `QAS_JSON_DECLARE_IMPL` to define the serializer and deserializer and implement them yourself.
 

@@ -127,6 +127,7 @@ static const Keyword keywords[] = {
     { "typedef", "TYPEDEF" },
     { "friend", "FRIEND" },
     { "class", "CLASS" },
+    { "typename", "TYPENAME" },
     { "namespace", "NAMESPACE" },
     { "enum", "ENUM" },
     { "struct", "STRUCT" },

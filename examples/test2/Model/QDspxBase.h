@@ -84,13 +84,13 @@ namespace QDspx {
 
 QAS_JSON_DECLARE(QDspx::Control)
 
-QAS_JSON_DECLARE(QDspx::TrackControl, QDspx::Control)
+QAS_JSON_DECLARE(QDspx::TrackControl)
 
-QAS_JSON_DECLARE(QDspx::Point<int>)
+QAS_JSON_DECLARE(QDspx::IntPoint)
 
-QAS_JSON_DECLARE(QDspx::Point<double>)
+QAS_JSON_DECLARE(QDspx::DoublePoint)
 
-QAS_JSON_DECLARE(QDspx::AnchorPoint, QDspx::IntPoint)
+QAS_JSON_DECLARE(QDspx::AnchorPoint)
 
 QAS_ENUM_DECLARE(QDspx::AnchorPoint::Interpolation)
 

@@ -251,6 +251,29 @@ Type Moc::parseType() {
     return type;
 }
 
+//TemplateDef Moc::parseTemplate() {
+//    TemplateDef def;
+//    next(LANGLE);
+//    def.begin = index - 1;
+//    until(RANGLE);
+//    def.end = index;
+//    index = def.begin + 1;
+//    while (inScope(&def) && hasNext()) {
+//        if (!test(CLASS) && !test(TYPENAME)) {
+//            parseType();
+//        } else {
+//            if (test(IDENTIFIER)) {
+//                def.typeNames.append(lexem());
+//            } else {
+//                def.typeNames.append(QByteArray());
+//            }
+//        }
+//        if (!until(COMMA))
+//            break;
+//    }
+//    return def;
+//}
+
 bool Moc::parseEnum(EnumDef *def) {
     bool isTypdefEnum = false; // typedef enum { ... } Foo;
 
@@ -382,100 +405,6 @@ bool Moc::skipCxxAttributes() {
     return false;
 }
 
-// returns false if the function should be ignored
-bool Moc::parseFunction(FunctionDef *def, bool inMacro) {
-    def->isVirtual = false;
-    def->isStatic = false;
-    // skip modifiers and attributes
-    while (test(INLINE) || (test(STATIC) && (def->isStatic = true) == true) ||
-           (test(VIRTUAL) && (def->isVirtual = true) == true) // mark as virtual
-           || skipCxxAttributes()) {
-    }
-    bool templateFunction = (lookup() == TEMPLATE);
-    def->type = parseType();
-    if (def->type.name.isEmpty()) {
-        if (templateFunction)
-            error("Template function as signal or slot");
-        else
-            error();
-    }
-    bool scopedFunctionName = false;
-    if (test(LPAREN)) {
-        def->name = def->type.name;
-        scopedFunctionName = def->type.isScoped;
-        def->type = Type("int");
-    } else {
-        Type tempType = parseType();
-        ;
-        while (!tempType.name.isEmpty() && lookup() != LPAREN) {
-            if (def->type.firstToken == Q_SIGNALS_TOKEN)
-                error();
-            else if (def->type.firstToken == Q_SLOTS_TOKEN)
-                error();
-            else {
-                if (!def->tag.isEmpty())
-                    def->tag += ' ';
-                def->tag += def->type.name;
-            }
-            def->type = tempType;
-            tempType = parseType();
-        }
-        next(LPAREN, "Not a signal or slot declaration");
-        def->name = tempType.name;
-        scopedFunctionName = tempType.isScoped;
-    }
-
-    // we don't support references as return types, it's too dangerous
-    if (def->type.referenceType == Type::Reference) {
-        QByteArray rawName = def->type.rawName;
-        def->type = Type("void");
-        def->type.rawName = rawName;
-    }
-
-    def->normalizedType = normalizeType(def->type.name);
-
-    if (!test(RPAREN)) {
-        parseFunctionArguments(def);
-        next(RPAREN);
-    }
-
-    // support optional macros with compiler specific options
-    while (test(IDENTIFIER))
-        ;
-
-    def->isConst = test(CONST);
-
-    while (test(IDENTIFIER))
-        ;
-
-    if (inMacro) {
-        next(RPAREN);
-        prev();
-    } else {
-        if (test(THROW)) {
-            next(LPAREN);
-            until(RPAREN);
-        }
-        if (test(SEMIC))
-            ;
-        else if ((def->inlineCode = test(LBRACE)))
-            until(RBRACE);
-        else if ((def->isAbstract = test(EQ)))
-            until(SEMIC);
-        else if (skipCxxAttributes())
-            until(SEMIC);
-        else
-            error();
-    }
-    if (scopedFunctionName) {
-        const QByteArray msg = "Function declaration " + def->name +
-                               " contains extra qualification. Ignoring as signal or slot.";
-        warning(msg.constData());
-        return false;
-    }
-    return true;
-}
-
 // like parseFunction, but never aborts with an error
 bool Moc::parseMaybeFunction(const ClassDef *cdef, FunctionDef *def) {
     def->isVirtual = false;
@@ -535,15 +464,68 @@ bool Moc::parseMaybeFunction(const ClassDef *cdef, FunctionDef *def) {
     return true;
 }
 
+// bool Moc::parseMaybeMemberVarOrSkip(MemberVariableDef *mdef) {
+//     if (test(EXPLICIT) || test(INLINE) || test(STATIC) || test(VIRTUAL) // mark as virtual
+//         || skipCxxAttributes() || test(TILDE)) {
+//         return false;
+//     }
+//     ArgumentDef &arg = *mdef;
+//     arg.type = parseType();
+//     if (test(IDENTIFIER))
+//         arg.name = lexem();
+//     while (test(LBRACK)) {
+//         arg.rightType += lexemUntil(RBRACK);
+//     }
+//     if (test(CONST) || test(VOLATILE)) {
+//         arg.rightType += ' ';
+//         arg.rightType += lexem();
+//     }
+//     arg.normalizedType = normalizeType(QByteArray(arg.type.name + ' ' + arg.rightType));
+//     arg.typeNameForCast = normalizeType(QByteArray(noRef(arg.type.name) + "(*)" +
+//     arg.rightType));
+//
+//     // void a();
+//     if (test(LPAREN)) {
+//         qDebug() << "Func" << arg.type.name << arg.name;
+//         until(RPAREN);
+//         if (test(LBRACE)) {
+//             until(RBRACE);
+//         }
+//         return false;
+//     }
+//
+//     // QString a = "1";
+//     if (test(EQ)) {
+//         qDebug() << "Inited" << arg.type.name << arg.name;
+//         until(SEMIC);
+//         return true;
+//     }
+//
+//     // QString a{};
+//     if (test(LBRACE)) {
+//         qDebug() << "Default" << arg.type.name << arg.name;
+//         until(RBRACE);
+//         until(SEMIC);
+//         return true;
+//     }
+//
+//     return test(SEMIC);
+// }
+
 void Moc::parse() {
     parseEnv(&rootEnv);
 }
 
 void Moc::parseEnv(Environment *env) {
     auto access = env->access;
+    bool templateClass = false;
+
+    bool isNamespace = env->isNamespace;
+    bool isClass = !isNamespace && !env->isRoot;
+
     while (inEnv(env) && hasNext()) {
         Token t = next();
-        if (env->isNamespace || env->isRoot) {
+        if (!isClass) {
             switch (t) {
                 case NAMESPACE: {
                     if (test(IDENTIFIER)) {
@@ -557,7 +539,8 @@ void Moc::parseEnv(Environment *env) {
                         }
                         if (test(EQ)) {
                             // namespace Foo = Bar::Baz;
-                            until(SEMIC);
+                            auto alias = lexemUntil(SEMIC).chopped(1).remove(0, 1);
+                            env->aliasNamespaces.insert(nsName, alias);
                         } else if (test(LPAREN)) {
                             // Ignore invalid code such as: 'namespace __identifier("x")'
                             // (QTBUG-56634)
@@ -576,82 +559,53 @@ void Moc::parseEnv(Environment *env) {
                             auto newNamespace = new NamespaceDef(std::move(def));
                             auto newEnv = QSharedPointer<Environment>::create(newNamespace, env);
                             parseEnv(newEnv.data());
-                            env->children.append(newEnv);
+                            env->children[nsName].append(newEnv);
                         }
                     }
-                    break;
+                    goto end;
                 }
-                case SEMIC:
-                case RBRACE:
-                case TEMPLATE:
-                case Q_DECLARE_INTERFACE_TOKEN:
-                case Q_DECLARE_METATYPE_TOKEN:
-                    break;
                 case MOC_INCLUDE_BEGIN:
                     currentFilenames.push(symbol().unquotedLexem());
-                    break;
+                    goto end;
                 case MOC_INCLUDE_END:
                     currentFilenames.pop();
-                    break;
+                    goto end;
                 case USING:
                     if (test(NAMESPACE)) {
-                        while (test(SCOPE) || test(IDENTIFIER))
-                            ;
+                        QByteArray ns;
+                        bool tmp;
+                        while ((ns += (tmp = test(SCOPE)) ? "::" : "", tmp) ||
+                               (ns += (tmp = test(IDENTIFIER)) ? lexem() : "", tmp)) {
+                        }
+                        env->usedNamespaces.insert(ns);
                         // Ignore invalid code such as: 'using namespace __identifier("x")'
                         // (QTBUG-63772)
                         if (test(LPAREN))
                             until(RPAREN);
                         next(SEMIC);
-                    }
-                    //  else if (test(IDENTIFIER)) {
-                    //     next(EQ);
-                    // }
-                    break;
-                case ENUM: {
-                    EnumDef enumDef;
-                    if (parseEnum(&enumDef)) {
-                        env->enums += enumDef;
+                        goto end;
                     }
                     break;
-                }
                 case QAS_ENUM_DECLARE_TOKEN: {
-                    if (env->isRoot) {
+                    if (env->isRoot && currentFilenames.size() <= 1) {
                         QByteArray typeName;
                         parseDeclareType(&typeName);
                         env->enumToGen.append(typeName);
                     }
-                    break;
+                    goto end;
                 }
                 case QAS_JSON_DECLARE_TOKEN: {
-                    if (env->isRoot) {
+                    if (env->isRoot && currentFilenames.size() <= 1) {
                         QByteArray typeName;
                         parseDeclareType(&typeName);
+                        qDebug() << typeName;
                         QByteArrayList types = typeName.split(',');
                         for (auto &type : types) {
                             type = type.trimmed();
                         }
                         env->classToGen.append(qMakePair(types.front(), types.mid(1)));
                     }
-                    break;
-                }
-                case CLASS:
-                case STRUCT: {
-                    ClassDef def;
-                    if (parseClassHead(&def)) {
-                        if (currentFilenames.size() <= 1) {
-                            auto newClass = new ClassDef(std::move(def));
-                            auto newEnv = QSharedPointer<Environment>::create(newClass, env);
-                            env->access = t == CLASS ? FunctionDef::Private : FunctionDef::Public;
-
-                            parseEnv(newEnv.data());
-                            env->children.append(newEnv);
-                        } else {
-                            while (inClass(&def) && hasNext()) {
-                                next();
-                            }
-                        }
-                        break;
-                    }
+                    goto end;
                 }
                 default:
                     break;
@@ -660,65 +614,80 @@ void Moc::parseEnv(Environment *env) {
             switch (t) {
                 case PRIVATE:
                     access = FunctionDef::Private;
-                    break;
+                    goto end;
                 case PROTECTED:
                     access = FunctionDef::Protected;
-                    break;
+                    goto end;
                 case PUBLIC:
                     access = FunctionDef::Public;
+                    goto end;
+                default:
                     break;
-                case STRUCT:
-                case CLASS: {
-                    ClassDef def;
-                    if (parseClassHead(&def)) {
-                        if (currentFilenames.size() <= 1) {
-                            auto newClass = new ClassDef(std::move(def));
-                            auto newEnv = QSharedPointer<Environment>::create(newClass, env);
-                            env->access = t == CLASS ? FunctionDef::Private : FunctionDef::Public;
+            }
+        }
 
-                            parseEnv(newEnv.data());
-                            env->children.append(newEnv);
-                        } else {
-                            while (inClass(&def) && hasNext()) {
-                                next();
-                            }
-                        }
-                        break;
-                    }
-                    break;
+        // Common
+        switch (t) {
+            case USING: {
+                bool tmp;
+                QByteArray name;
+                if ((name = (tmp = test(IDENTIFIER)) ? lexem() : "", tmp) && test(EQ)) {
+                    bool tn = test(TYPENAME);
+                    Type type = parseType();
+                    env->aliasClasses.insert(name, type);
                 }
-                case ENUM: {
+                goto end;
+            }
+            case TYPEDEF: {
+                auto type = parseType();
+                if (test(IDENTIFIER)) {
+                    auto name = lexem();
+                    env->aliasClasses.insert(name, type);
+                } else {
+                    // Ignore function pointers
+                }
+                until(SEMIC);
+                break;
+            }
+            case ENUM: {
+                if (currentFilenames.size() <= 1) {
                     EnumDef enumDef;
                     if (parseEnum(&enumDef)) {
-                        env->enums += enumDef;
+                        env->enums.insert(enumDef.name, enumDef);
                     }
-                    break;
                 }
-                case Q_SIGNALS_TOKEN:
-                case Q_SLOTS_TOKEN:
-                case Q_OBJECT_TOKEN:
-                case Q_GADGET_TOKEN:
-                case Q_PROPERTY_TOKEN:
-                case Q_PLUGIN_METADATA_TOKEN:
-                case Q_ENUMS_TOKEN:
-                case Q_ENUM_TOKEN:
-                case Q_ENUM_NS_TOKEN:
-                case Q_FLAGS_TOKEN:
-                case Q_FLAG_TOKEN:
-                case Q_FLAG_NS_TOKEN:
-                case Q_DECLARE_FLAGS_TOKEN:
-                case Q_CLASSINFO_TOKEN:
-                case Q_INTERFACES_TOKEN:
-                case Q_PRIVATE_SLOT_TOKEN:
-                case Q_PRIVATE_PROPERTY_TOKEN:
-                case SEMIC:
-                case COLON:
+                break;
+            }
+            case SEMIC:
+            case RBRACE:
+                templateClass = false;
+                break;
+            case TEMPLATE:
+                templateClass = true;
+                break;
+            case STRUCT:
+            case CLASS: {
+                ClassDef def;
+                if (parseClassHead(&def)) {
+                    auto name = def.classname;
+
+                    auto newClass = new ClassDef(std::move(def));
+                    auto newEnv = QSharedPointer<Environment>::create(newClass, env);
+                    newEnv->access = t == CLASS ? FunctionDef::Private : FunctionDef::Public;
+                    newEnv->templateClass = templateClass;
+
+                    parseEnv(newEnv.data());
+                    env->children[name].append(newEnv);
+                }
+                break;
+            }
+            default:
+                if (!isClass || !(currentFilenames.size() <= 1))
                     break;
-                case RBRACE:
-                    break;
-                default:
-                    bool ignore = false;
-                    QByteArray attr;
+
+                bool ignore = false;
+                QByteArray attr;
+                if (currentFilenames.size() <= 1) {
                     switch (t) {
                         case QAS_ATTRIBUTE_TOKEN: {
                             parseDeclareType(&attr);
@@ -736,29 +705,30 @@ void Moc::parseEnv(Environment *env) {
                             }
                             next();
                             break;
-
                         default:
                             break;
                     }
+                }
 
-                    FunctionDef funcDef;
-                    funcDef.access = access;
-                    int rewind = index--;
-                    if (parseMaybeFunction(env->cl.data(), &funcDef)) {
+                FunctionDef funcDef;
+                funcDef.access = access;
+                int rewind = index--;
+                if (parseMaybeFunction(env->cl.data(), &funcDef)) {
+                } else {
+                    index = rewind - 1;
+                    MemberVariableDef arg;
+                    if (parseMemberVariable(&arg)) {
+                        arg.access = access;
+                        arg.attr = attr;
+                        arg.ignore = ignore;
+                        env->cl->memberVars += arg;
                     } else {
-                        index = rewind - 1;
-                        MemberVariableDef arg;
-                        if (parseMemberVariable(&arg)) {
-                            arg.access = access;
-                            arg.attr = attr;
-                            arg.ignore = ignore;
-                            env->cl->memberVars += arg;
-                        } else {
-                            index = rewind;
-                        }
+                        index = rewind;
                     }
-            }
+                }
+                break;
         }
+    end:;
     }
 }
 
@@ -805,9 +775,22 @@ static QJsonObject encodeEnv(Environment *env) {
     // Children
     QJsonArray childArr;
     for (const auto &child : qAsConst(env->children)) {
-        childArr.append(encodeEnv(child.data()));
+        for (const auto &item : child) {
+            childArr.append(encodeEnv(item.data()));
+        }
     }
     envObj.insert("children", childArr);
+
+    // Alias
+    QJsonObject nsObj;
+    for (auto it = env->aliasNamespaces.begin(); it != env->aliasNamespaces.end(); ++it) {
+        nsObj.insert(it.key(), QString::fromUtf8(it.value()));
+    }
+    QJsonObject clObj;
+    for (auto it = env->aliasClasses.begin(); it != env->aliasClasses.end(); ++it) {
+        nsObj.insert(it.key(), QString::fromUtf8(it.value().name));
+    }
+    envObj.insert("alias", QJsonObject({{"namespaces", nsObj}, {"classes", clObj}}));
 
     return envObj;
 }

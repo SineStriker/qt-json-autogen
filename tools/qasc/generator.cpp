@@ -1,94 +1,182 @@
 #include "generator.h"
 
-static QByteArray removeTemplateSpec(const QByteArray &name) {
-    QByteArray nonTemplate = name;
+static QByteArrayList splitScopes(const QByteArray &name, bool ignoreTemplate = true) {
     int cnt = 0;
-    if (nonTemplate.endsWith('>')) {
-        int i = nonTemplate.size() - 1;
-        while (i >= 0) {
-            switch (nonTemplate.at(i)) {
-                case '<':
-                    cnt--;
-                    break;
-                case '>':
-                    cnt++;
-                    break;
-                default:
-                    break;
-            }
-            if (cnt == 0) {
+    QByteArrayList res;
+    QByteArray cur;
+    for (const auto &ch : name) {
+        switch (ch) {
+            case '<':
+                cnt++;
+                if (!ignoreTemplate) {
+                    cur += ch;
+                }
                 break;
-            }
-            i--;
-        }
-        if (i > 0) {
-            nonTemplate = nonTemplate.left(i);
+            case '>':
+                cnt--;
+                if (!ignoreTemplate) {
+                    cur += ch;
+                }
+                break;
+            default:
+                if (cnt > 0) {
+                    if (!ignoreTemplate) {
+                        cur += ch;
+                    }
+                    break;
+                }
+                if (ch == ':') {
+                    if (!cur.isEmpty()) {
+                        res += cur;
+                        cur.clear();
+                    }
+                } else {
+                    cur += ch;
+                }
+                break;
         }
     }
-    return nonTemplate;
+    if (!cur.isEmpty()) {
+        res += cur;
+    }
+    return res;
+}
+
+static bool searchScope(const QByteArrayList &scopeNames, Environment *root, Environment *&out) {
+    Environment *env = root;
+    QByteArrayList names = scopeNames;
+
+    while (!names.isEmpty()) {
+        auto name = names.first();
+        names.pop_front();
+
+        while (env) {
+            // Search children
+            {
+                auto it = env->children.find(name);
+                if (it != env->children.end()) {
+                    const auto &inners = it.value();
+                    for (const auto &inner : inners) {
+                        if (searchScope(names, inner.data(), env)) {
+                            names.clear();
+                            break;
+                        }
+                    }
+                    break;
+                }
+            }
+
+            // Search namespace alias
+            {
+                auto it = env->aliasNamespaces.find(name);
+                if (it != env->aliasNamespaces.end()) {
+                    QByteArrayList aliasNames = splitScopes(it.value());
+                    names = aliasNames + names;
+                    break;
+                }
+            }
+
+            // Search class alias
+            {
+                auto it = env->aliasClasses.find(name);
+                if (it != env->aliasClasses.end()) {
+                    QByteArrayList aliasNames = splitScopes(it.value().name);
+                    names = aliasNames + names;
+                    break;
+                }
+            }
+
+            // Go upper if not in current layer
+            env = env->parent;
+        }
+
+        if (env)
+            continue;
+
+        return false;
+    }
+
+    out = env;
+
+    return true;
+}
+
+QByteArray resolveSuperClass(const QByteArray &classQualified, const QByteArray &superName,
+                             Environment *rootEnv) {
+    QByteArray res;
+
+    QByteArrayList layerNames = splitScopes(classQualified);
+    layerNames.removeLast();
+
+    QByteArrayList layerFullNames = splitScopes(classQualified, false);
+    layerFullNames.removeLast();
+
+    QByteArrayList superNames = splitScopes(superName);
+    int i;
+    for (i = layerFullNames.size(); i >= 0; --i) {
+        Environment *env = nullptr;
+        auto scopeNames = layerNames.mid(0, i) + superNames;
+        if (!searchScope(scopeNames, rootEnv, env) || env->cl.isNull()) {
+            continue;
+        }
+        break;
+    }
+
+    if (i >= 0) {
+        res = layerFullNames.mid(0, i).join("::") + "::" + superName;
+    }
+    return res;
 }
 
 void Generator::generateCode() {
-    std::list<QPair<QByteArrayList, Environment *>> stack;
-    stack.push_back(qMakePair(QByteArrayList(), rootEnv));
-
-    //    QHash<QByteArray, QByteArray> classToGen2;
-    //    for (const auto &name : qAsConst(rootEnv->classToGen)) {
-    //        auto nameWithoutSpec = removeTemplateSpec(name);
-    //        if (nameWithoutSpec.isEmpty()) {
-    //            continue;
-    //        }
-    //        classToGen2.insert(nameWithoutSpec, name);
-    //    }
-
-    QMap<QByteArray, ClassDef> classes;
-    QMap<QByteArray, EnumDef> enums;
-
-    while (!stack.empty()) {
-        auto pair = stack.front();
-        stack.pop_front();
-
-        const auto &names = pair.first;
-        const auto &env = pair.second;
-
-        // Handle current enumerations
-        for (const auto &item : qAsConst(env->enums)) {
-            QByteArray qualified = (QByteArrayList(names) << item.name).join("::");
-            enums.insert(qualified, item);
-        }
-
-        // Handle current classes
-        if (!env->cl.isNull()) {
-            const auto &cl = *env->cl;
-            QByteArray qualified = names.join("::");
-            classes.insert(qualified, cl);
-        }
-
-        // Push all children
-        for (const auto &child : qAsConst(env->children)) {
-            QByteArrayList newNames =
-                QByteArrayList(names)
-                << (child->isNamespace ? child->ns->classname : child->cl->classname);
-            stack.push_back(qMakePair(newNames, child.data()));
-        }
-    }
-
     // Generate all enums
     for (const auto &q : qAsConst(rootEnv->enumToGen)) {
-        auto it = enums.find(q);
-        if (it == enums.end()) {
+        auto scopeNames = splitScopes(q);
+        Environment *env = nullptr;
+        if (!searchScope(scopeNames.mid(0, scopeNames.size() - 1), rootEnv, env)) {
+            goto enum_not_found;
+        }
+
+        {
+            auto it = env->enums.find(scopeNames.back());
+            if (it == env->enums.end()) {
+                goto enum_not_found;
+            }
+            generateEnums(q, it.value());
             continue;
         }
-        generateEnums(q, it.value());
+
+    enum_not_found:
+        qDebug().noquote() << QString::asprintf("Cannot found the correct scope of enum : %s",
+                                                q.data());
     }
 
     // Generate all classes
     for (const auto &q : qAsConst(rootEnv->classToGen)) {
-        auto it = classes.find(removeTemplateSpec(q.first));
-        if (it == classes.end()) {
+        const auto &name = q.first;
+        auto scopeNames = splitScopes(name);
+        Environment *env = nullptr;
+        if (!searchScope(scopeNames, rootEnv, env) || env->cl.isNull()) {
+            qDebug().noquote() << QString::asprintf("Cannot found the correct scope of class: %s",
+                                                    name.data());
             continue;
         }
-        generateClass(q.first, q.second, it.value());
+
+        auto &cl = *env->cl.data();
+        QByteArrayList qualifiedSuperNames;
+        for (const auto &item : qAsConst(cl.superclassList)) {
+            const auto &superName = item.first;
+            auto res = resolveSuperClass(name, superName, rootEnv);
+            if (res.isEmpty()) {
+                qDebug().noquote() << QString::asprintf(
+                    "Cannot found the correct scope of class %s derived by class %s",
+                    superName.data(), name.data());
+                continue;
+            }
+            qualifiedSuperNames.append(res);
+        }
+
+        generateClass(name, qualifiedSuperNames, cl);
     }
 }
 

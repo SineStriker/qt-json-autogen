@@ -68,9 +68,9 @@ namespace QDspx {
 
 QAS_JSON_DECLARE(QDspx::ParamCurve)
 
-QAS_JSON_DECLARE(QDspx::ParamFree, QDspx::ParamCurve)
+QAS_JSON_DECLARE(QDspx::ParamFree)
 
-QAS_JSON_DECLARE(QDspx::ParamAnchor, QDspx::ParamCurve)
+QAS_JSON_DECLARE(QDspx::ParamAnchor)
 
 QAS_JSON_DECLARE(QDspx::ParamInfo)
 

@@ -1,7 +1,5 @@
 project(qasc VERSION 0.0.1.1 LANGUAGES CXX)
 
-include(${PROJECT_MODULES_DIR}/All.cmake)
-
 # ----------------------------------
 # Add modules
 # ----------------------------------

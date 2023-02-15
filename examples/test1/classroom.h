@@ -5,8 +5,9 @@
 #include <QList>
 
 #include "qas.h"
+#include "../test2/Model/QDspxBase.h"
 
-#include<set>
+#include <set>
 
 namespace School {
 
@@ -26,6 +27,11 @@ namespace School {
             int height;
         };
 
+        class SmallStudent : public Student {
+        public:
+            int iq;
+        };
+
         Classroom() = default;
 
         QString className;
@@ -33,18 +39,37 @@ namespace School {
         QList<Student> students;
     };
 
-    class BigClassroom : public Classroom{
+    class BigClassroom : public Classroom {
     public:
         QString address;
     };
 };
 
-QAS_ENUM_DECLARE(School::Classroom::Student::Gender)
+namespace A {
+    namespace B {
+        namespace C {
+            namespace F = B;
+        }
+    }
+}
 
-QAS_JSON_DECLARE(School::Classroom::Student)
+namespace A {
+    namespace E = School;
+    namespace B {
+        namespace C {
+            namespace D = E;
+        };
+    }
+}
+
+QAS_ENUM_DECLARE(A::B::C::D::Classroom::Student::Gender)
+
+QAS_JSON_DECLARE(A::B::C::D::Classroom::Student)
+
+QAS_JSON_DECLARE(A::B::C::D::Classroom::SmallStudent)
 
 QAS_JSON_DECLARE(School::Classroom)
 
-QAS_JSON_DECLARE(School::BigClassroom, School::Classroom)
+QAS_JSON_DECLARE(School::BigClassroom)
 
 #endif //EXAMPLES_CLASSROOM_H

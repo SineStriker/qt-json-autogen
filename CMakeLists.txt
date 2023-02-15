@@ -12,6 +12,8 @@ endif()
 
 set(PROJECT_MODULES_DIR ${CMAKE_CURRENT_SOURCE_DIR}/scripts/cmake)
 
-# add_subdirectory(src)
+include(${PROJECT_MODULES_DIR}/All.cmake)
+
+add_subdirectory(src)
 
 add_subdirectory(tools)

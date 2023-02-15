@@ -176,17 +176,30 @@ struct NamespaceDef : BaseDef {};
 
 Q_DECLARE_TYPEINFO(NamespaceDef, Q_MOVABLE_TYPE);
 
+struct TemplateDef : BaseDef {
+    QByteArrayList typeNames;
+};
+
 struct Environment {
     bool isRoot;
     bool isNamespace;
     FunctionDef::Access access = FunctionDef::Public;
+    bool templateClass = false;
 
     QSharedPointer<NamespaceDef> ns;
     QSharedPointer<ClassDef> cl;
 
+    inline QByteArray name() const {
+        return ns.isNull() ? (cl.isNull() ? "@root" : cl->classname) : ns->classname;
+    }
+
+    QSet<QByteArray> usedNamespaces;
+    QHash<QByteArray, QByteArray> aliasNamespaces;
+    QHash<QByteArray, Type> aliasClasses;
+
     Environment *parent;
-    QVector<QSharedPointer<Environment>> children;
-    QVector<EnumDef> enums;
+    QHash<QByteArray, QList<QSharedPointer<Environment>>> children;
+    QHash<QByteArray, EnumDef> enums;
 
     QList<QByteArray> enumToGen;
     QList<QPair<QByteArray, QByteArrayList>> classToGen;
@@ -230,16 +243,22 @@ public:
         return index > def->begin && index < def->end - 1;
     }
 
+    inline bool inScope(const BaseDef *def) const {
+        return index > def->begin && index < def->end - 1;
+    }
+
     inline bool inEnv(const Environment *env) const {
         return env->isRoot ||
                (env->isNamespace ? inNamespace(env->ns.data()) : inClass(env->cl.data()));
     }
 
     Type parseType();
+//    TemplateDef parseTemplate();
 
     bool parseEnum(EnumDef *def);
-    bool parseFunction(FunctionDef *def, bool inMacro = false);
     bool parseMaybeFunction(const ClassDef *cdef, FunctionDef *def);
+
+    //    bool parseMaybeMemberVarOrSkip(MemberVariableDef *mdef);
 
     void parseFunctionArguments(FunctionDef *def);
     bool parseMemberVariable(ArgumentDef *def);

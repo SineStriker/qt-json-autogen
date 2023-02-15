@@ -70,6 +70,7 @@ QT_BEGIN_NAMESPACE
     F(TYPEDEF)                                                                                     \
     F(FRIEND)                                                                                      \
     F(CLASS)                                                                                       \
+    F(TYPENAME)                                                                                    \
     F(NAMESPACE)                                                                                   \
     F(ENUM)                                                                                        \
     F(STRUCT)                                                                                      \

@@ -92,9 +92,9 @@ QAS_JSON_DECLARE(QDspx::ClipTime)
 
 QAS_JSON_DECLARE(QDspx::Clip)
 
-QAS_JSON_DECLARE(QDspx::AudioClip, QDspx::Clip)
+QAS_JSON_DECLARE(QDspx::AudioClip)
 
-QAS_JSON_DECLARE(QDspx::SingingClip, QDspx::Clip)
+QAS_JSON_DECLARE(QDspx::SingingClip)
 
 QAS_JSON_DECLARE(QDspx::Track)
 
