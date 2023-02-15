@@ -108,14 +108,14 @@ A header-only library and an executable tool are provided.
 + If the class is a derived class, all its super classes will participate in serialization and deserialization.
     + The complete form of the super class name will be automatically deduced, but it's recommended to specify completely at the derived class head.
 
-    + Note that serializable super class should be publicly inherited.
+    + Note that serializable super class should be publicly derived.
 
 + Use `QAS_ATTRIBUTE` to specify the key of a member in json object and `QAS_IGNORE` to ignore a member.
     + Only public members participate in serialization and deserialization.
 
 + The member to participating in serialization and deserialization should be one of the following 3:
     1. A serializable class
-    2. A supported container
+    2. A supported container of serialzable classes
         + List and map types in STL or Qt are supported
         + Use macro defined in `qas_json_types.h` to register your own container
     3. A serializable enumeration
