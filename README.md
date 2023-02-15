@@ -105,10 +105,8 @@ A header-only library and an executable tool are provided.
 + Use `QAS_JSON_DECLARE` to define the serializer and deserializer of the class, then it becomes serializable.
     + Template classes or classes in the scope of a template class with more than one type are not supported by C style macros, you need to use `using` and then use its alias in the macro.
 
-+ If the class is a derived class, all its super classes will participate in serialization and deserialization.
-    + The complete form of the super class name will be automatically deduced, but it's recommended to specify completely at the derived class head.
-
-    + Note that serializable super class should be publicly derived.
++ If the class is a derived class, all its publicly derived super classes will participate in serialization and deserialization.
+    + The complete form of the super class name will be automatically deduced, but it's recommended to specify the super class name completely at the derived class head.
 
 + Use `QAS_ATTRIBUTE` to specify the key of a member in json object and `QAS_IGNORE` to ignore a member.
     + Only public members participate in serialization and deserialization.
@@ -185,11 +183,13 @@ qas_wrap_cpp(<VAR> src_file1 [src_file2 ...]
 
 ### QASC Tool
 
-+ `qasc` is a lexical analyzer modified from `moc`, it preprocesses source files before building. If any one of the following identifiers appears in a given source file, `qasc` will generate implementations of serializers and deserializers into `stdout` or a new file.
++ `qasc` is a lexical analyzer modified from `moc` in Qt5 tools, it preprocesses source files before building. If any one of the following identifiers appears in a given source file, `qasc` will generate implementations of serializers and deserializers into `stdout` or a new file.
     + `QAS_ATTRIBUTE`
     + `QAS_IGNORE`
     + `QAS_JSON_DECLARE`
     + `QAS_ENUM_DECLARE`
+
++ `qasc` has been tested when in Qt6 framework, it works fine.
 
 ## Acknowledgements
 

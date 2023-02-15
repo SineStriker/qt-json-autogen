@@ -135,7 +135,8 @@ bool Moc::parseClassHead(ClassDef *def) {
             if (test(LPAREN)) {
                 until(RPAREN);
             } else {
-                def->superclassList += qMakePair(type, access);
+                def->superclassList +=
+                    qMakePair(type, ClassDef::SuperClassInfo{access, symbol().lineNum});
             }
         } while (test(COMMA));
     }
@@ -594,7 +595,7 @@ void Moc::parseEnv(Environment *env) {
                     if (env->isRoot && currentFilenames.size() <= 1) {
                         QByteArray typeName;
                         parseDeclareType(&typeName);
-                        env->enumToGen.append(typeName);
+                        env->enumToGen.append({typeName, symbol().lineNum, currentFilenames.top()});
                     }
                     goto end;
                 }
@@ -606,7 +607,8 @@ void Moc::parseEnv(Environment *env) {
                         for (auto &type : types) {
                             type = type.trimmed();
                         }
-                        env->classToGen.append(qMakePair(types.front(), types.mid(1)));
+                        env->classToGen.append(
+                            {types.front(), symbol().lineNum, currentFilenames.top()});
                     }
                     goto end;
                 }
@@ -764,13 +766,13 @@ static QJsonObject encodeEnv(Environment *env) {
     } else {
         QJsonArray enumNames;
         for (const auto &item : qAsConst(env->enumToGen)) {
-            enumNames.append(QString::fromUtf8(item));
+            enumNames.append(QString::fromUtf8(item.token));
         }
         envObj.insert("declaredEnums", enumNames);
 
         QJsonArray classNames;
         for (const auto &item : qAsConst(env->classToGen)) {
-            classNames.append(QString::fromUtf8(item.first));
+            classNames.append(QString::fromUtf8(item.token));
         }
         envObj.insert("declaredClasses", classNames);
     }
@@ -1019,7 +1021,7 @@ QJsonObject ClassDef::toJson() const {
 
     for (const auto &super : qAsConst(superclassList)) {
         const auto name = super.first;
-        const auto access = super.second;
+        const auto access = super.second.access;
         QJsonObject superCls;
         superCls[QLatin1String("name")] = QString::fromUtf8(name);
         FunctionDef::accessToJson(&superCls, access);

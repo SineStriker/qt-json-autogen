@@ -1,11 +1,10 @@
 #ifndef EXAMPLES_CLASSROOM_H
 #define EXAMPLES_CLASSROOM_H
 
-#include <QString>
 #include <QList>
+#include <QString>
 
 #include "qas.h"
-#include "../test2/Model/QDspxBase.h"
 
 #include <set>
 
@@ -43,15 +42,25 @@ namespace School {
     public:
         QString address;
     };
-};
+}; // namespace School
+
 
 namespace A {
     namespace B {
+
+        template <class A, class B>
+        class Pair {
+        public:
+            A a;
+            B b;
+        };
+
+
         namespace C {
             namespace F = B;
         }
-    }
-}
+    } // namespace B
+} // namespace A
 
 namespace A {
     namespace E = School;
@@ -59,8 +68,13 @@ namespace A {
         namespace C {
             namespace D = E;
         };
-    }
-}
+    } // namespace B
+} // namespace A
+
+class CA : public A::B::C::D::Classroom::Student {
+public:
+    QString str;
+};
 
 QAS_ENUM_DECLARE(A::B::C::D::Classroom::Student::Gender)
 
@@ -72,4 +86,10 @@ QAS_JSON_DECLARE(School::Classroom)
 
 QAS_JSON_DECLARE(School::BigClassroom)
 
-#endif //EXAMPLES_CLASSROOM_H
+typedef A::B::C::F::Pair<int, QString> NestPair;
+
+QAS_JSON_DECLARE(NestPair)
+
+QAS_JSON_DECLARE(CA)
+
+#endif // EXAMPLES_CLASSROOM_H

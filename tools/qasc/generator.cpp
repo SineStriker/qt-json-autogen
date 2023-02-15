@@ -1,5 +1,23 @@
 #include "generator.h"
 
+#ifdef Q_CC_MSVC
+#define ErrorFormatString "%s(%d): "
+#else
+#define ErrorFormatString "%s:%d: "
+#endif
+
+static void error(const QByteArray &msg, const QByteArray &filename, int lineNum,
+                  bool isError = true) {
+    if (isError) {
+        fprintf(stderr, ErrorFormatString "Error: %s\n", filename.constData(), lineNum,
+                msg.constData());
+        exit(EXIT_FAILURE);
+    } else {
+        fprintf(stderr, ErrorFormatString "Warning: %s\n", filename.constData(), lineNum,
+                msg.constData());
+    }
+}
+
 static QByteArrayList splitScopes(const QByteArray &name, bool ignoreTemplate = true) {
     int cnt = 0;
     QByteArrayList res;
@@ -131,7 +149,8 @@ QByteArray resolveSuperClass(const QByteArray &classQualified, const QByteArray 
 void Generator::generateCode() {
     // Generate all enums
     for (const auto &q : qAsConst(rootEnv->enumToGen)) {
-        auto scopeNames = splitScopes(q);
+        const auto &name = q.token;
+        auto scopeNames = splitScopes(name);
         Environment *env = nullptr;
         if (!searchScope(scopeNames.mid(0, scopeNames.size() - 1), rootEnv, env)) {
             goto enum_not_found;
@@ -142,35 +161,39 @@ void Generator::generateCode() {
             if (it == env->enums.end()) {
                 goto enum_not_found;
             }
-            generateEnums(q, it.value());
+            generateEnums(name, it.value());
             continue;
         }
 
     enum_not_found:
-        qDebug().noquote() << QString::asprintf("Cannot found the correct scope of enum : %s",
-                                                q.data());
+        error(QString::asprintf("%s cannot be resolved", name.data()).toUtf8(), q.filename,
+              q.lineNum);
     }
 
     // Generate all classes
     for (const auto &q : qAsConst(rootEnv->classToGen)) {
-        const auto &name = q.first;
+        const auto &name = q.token;
         auto scopeNames = splitScopes(name);
         Environment *env = nullptr;
         if (!searchScope(scopeNames, rootEnv, env) || env->cl.isNull()) {
-            qDebug().noquote() << QString::asprintf("Cannot found the correct scope of class: %s",
-                                                    name.data());
+            error(QString::asprintf("%s cannot be resolved", name.data()).toUtf8(), q.filename,
+                  q.lineNum);
             continue;
         }
 
         auto &cl = *env->cl.data();
         QByteArrayList qualifiedSuperNames;
         for (const auto &item : qAsConst(cl.superclassList)) {
+            if (item.second.access != FunctionDef::Public){
+                continue;
+            }
             const auto &superName = item.first;
             auto res = resolveSuperClass(name, superName, rootEnv);
             if (res.isEmpty()) {
-                qDebug().noquote() << QString::asprintf(
-                    "Cannot found the correct scope of class %s derived by class %s",
-                    superName.data(), name.data());
+                error(QString::asprintf("%s derived by %s cannot be resolved", superName.data(),
+                                        name.data())
+                          .toUtf8(),
+                      q.filename, item.second.lineNum);
                 continue;
             }
             qualifiedSuperNames.append(res);

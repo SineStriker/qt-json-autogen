@@ -150,7 +150,13 @@ struct BaseDef {
 };
 
 struct ClassDef : BaseDef {
-    QVector<QPair<QByteArray, FunctionDef::Access>> superclassList;
+
+    struct SuperClassInfo {
+        FunctionDef::Access access = FunctionDef::Access::Public;
+        int lineNum = 0;
+    };
+
+    QVector<QPair<QByteArray, SuperClassInfo>> superclassList;
 
     QVector<MemberVariableDef> memberVars;
 
@@ -180,6 +186,12 @@ struct TemplateDef : BaseDef {
     QByteArrayList typeNames;
 };
 
+struct DeclareItem {
+    QByteArray token;
+    int lineNum;
+    QByteArray filename;
+};
+
 struct Environment {
     bool isRoot;
     bool isNamespace;
@@ -201,8 +213,8 @@ struct Environment {
     QHash<QByteArray, QList<QSharedPointer<Environment>>> children;
     QHash<QByteArray, EnumDef> enums;
 
-    QList<QByteArray> enumToGen;
-    QList<QPair<QByteArray, QByteArrayList>> classToGen;
+    QList<DeclareItem> enumToGen;
+    QList<DeclareItem> classToGen;
 
     Environment() : isRoot(true), isNamespace(false), parent(nullptr) {
     }
@@ -253,7 +265,7 @@ public:
     }
 
     Type parseType();
-//    TemplateDef parseTemplate();
+    //    TemplateDef parseTemplate();
 
     bool parseEnum(EnumDef *def);
     bool parseMaybeFunction(const ClassDef *cdef, FunctionDef *def);
