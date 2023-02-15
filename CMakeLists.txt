@@ -40,6 +40,7 @@ add_subdirectory(tools)
 if(NOT QAS_SKIP_INSTALL)
     # Add install target
     set(_install_dir ${CMAKE_INSTALL_LIBDIR}/cmake/${QAS_INSTALL_NAME_LOWER})
+    set(_tools_dir ${CMAKE_INSTALL_PREFIX}/tools/${QAS_INSTALL_NAME_LOWER})
 
     # Add version file
     write_basic_package_version_file(
@@ -65,7 +66,7 @@ if(NOT QAS_SKIP_INSTALL)
 
     install(TARGETS qasc
         EXPORT QasToolTargets
-        RUNTIME DESTINATION ${CMAKE_INSTALL_PREFIX}/tools/${QAS_INSTALL_NAME_LOWER}
+        RUNTIME DESTINATION ${_tools_dir}
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
         ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     )

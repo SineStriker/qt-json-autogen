@@ -2,44 +2,32 @@
 
 A compile time tool to generate serialization source codes for class serialization.
 
-## Introduction
-
-### Supported Types
-
-+ Enumeration
-+ Class
-
-### Libraries Used
-
-+ [moc](https://github.com/qt/qtbase/tree/dev/src/tools/moc)
-    + Qt Meta Object Compiler (Qt 5.15.2)
-
 ## Functionalities
 
 ### Json
 
-Generate json serializer and deserializer based on QJsonObject
+Generate json serializer and deserializer based on QJsonObject.
 
 ### Enumeration
 
-Generate enumeration converter (to and from QString)
+Generate enumeration converter (to and from QString).
 
 ## Usage
+
+A header-only library and an executable tool are provided.
 
 ### Add Into CMake Project
 
 + Example `CMakeLists.txt`
     ```cmake
-    find_package(qastool REQUIRED COMPONENTS qasstream qasc)
+    find_package(qastool REQUIRED)
+    include_directories(${QASTOOL_INCLUDE_DIRS})
 
     set(_src ...            ) # Add source files
     set(_headers_for_qas ...) # Headers using QAS macros
 
     # Specify your target, for example an exe
     add_executable(${YOUR_TARGET} ${_src})
-
-    # Only use to add include QAS headers directory
-    target_link_libraries(${YOUR_PROJECT} PRIVATE qastool::qasstream)
     
     # Tell qasc to preprocess your headers
     qas_wrap_cpp(_qasc_src ${_headers_for_qas} TARGET ${YOUR_TARGET})
@@ -48,7 +36,7 @@ Generate enumeration converter (to and from QString)
     target_sources(${YOUR_TARGET} PRIVATE ${_qasc_src})
     ```
 
-+ Include `qas.h` at the beginning of any headers because the auto generated sources will include your headers and they need other functions defined in `qas.h`.
++ Include `qas.h` at the beginning of your headers because the auto generated sources will include your headers and they need other functions defined in `qas.h`.
 
 ### Enumeration Serialization
 
@@ -68,10 +56,6 @@ Generate enumeration converter (to and from QString)
     QAS_ENUM_DECLARE(Name)
     ```
 + Use `QAS_ENUM_DECLARE` to define the serializer and deserializer of the enumeration, then it becomes serializable.
-    ```c++
-    Name QASEnumType<Name>::fromString(const QString &s, bool *ok = nullptr);
-    QString QASEnumType<Name>::toString(Name e);
-    ```
 
 + The string format of a enumeration value is same as the one in definition, use `QAS_ATTRIBUTE` to override it, the quotes are optional.
 
@@ -181,3 +165,39 @@ Generate enumeration converter (to and from QString)
         ]
     }
     ```
+
+## Details
+
+### CMake Identifiers Intro
+
+#### qas_wrap_cpp
+```
+qas_wrap_cpp(<VAR> src_file1 [src_file2 ...]
+            [TARGET target]
+            [OPTIONS ...]
+            [DEPENDS ...])
+```
++ This macro is modified from `qt5_wrap_cpp` in Qt cmake modules.
++ Creates rules for calling the Qt Auto Serialization Compiler (qasc) on the given source files. For each input file, an output file is generated in the build directory. The paths of the generated files are added to `<VAR>`.
++ You can set an explicit `TARGET`. This will make sure that the target properties `INCLUDE_DIRECTORIES` and `COMPILE_DEFINITIONS` are also used when scanning the source files with qasc.
++ You can set additional `OPTIONS` that should be added to the qasc calls. You can find possible options in the qasc documentation.
++ `DEPENDS` allows you to add additional dependencies for recreation of the generated files. This is useful when the sources have implicit dependencies.
+
+### QASC Tool
+
++ `qasc` is a lexical analyzer modified from `moc`, it preprocesses source files before building. If any one of the following identifiers appears in a given source file, `qasc` will generate implementations of serializers and deserializers into `stdout` or a new file.
+    + `QAS_ATTRIBUTE`
+    + `QAS_IGNORE`
+    + `QAS_JSON_DECLARE`
+    + `QAS_ENUM_DECLARE`
+
+## Acknowledgements
+
++ [moc](https://github.com/qt/qtbase/tree/dev/src/tools/moc)
+    + Qt Meta Object Compiler (Qt 5.15.2)
+
+## License
+
++ The moc compiler is a part of Qt sources which is released under GNU LGPL v2.1 or later, which `qasc` inherited. If you modify any codes in `qasc`'s source files, you need to make your modification open source as the LGPL protocol requires.
+
++ Other codes in this project are released under Apache 2.0 License.

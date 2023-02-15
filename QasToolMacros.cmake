@@ -1,6 +1,8 @@
 include(CMakeParseArguments)
 
-get_target_property(QASC_EXECUTABLE qastool::qasc LOCATION)
+get_target_property(QASTOOL_QASC_EXECUTABLE qastool::qasc LOCATION)
+
+get_target_property(QASTOOL_INCLUDE_DIRS qastool::qasstream INTERFACE_INCLUDE_DIRECTORIES)
 
 # macro used to create the names of output files preserving relative dirs
 macro(qas_make_output_file infile prefix ext outfile )
@@ -105,7 +107,7 @@ function(qas_create_qasc_command infile outfile qasc_flags qasc_options qasc_tar
 
     set(_qasc_extra_parameters_file @${_qasc_parameters_file})
     add_custom_command(OUTPUT ${outfile}
-                       COMMAND ${QASC_EXECUTABLE} ${_qasc_extra_parameters_file}
+                       COMMAND ${QASTOOL_QASC_EXECUTABLE} ${_qasc_extra_parameters_file}
                        DEPENDS ${infile} ${qasc_depends}
                        ${_qasc_working_dir}
                        VERBATIM)
