@@ -238,7 +238,7 @@ int runMoc(int argc, char **argv) {
     bool defaultInclude = true;
     Preprocessor pp;
     Moc moc;
-    pp.macros["QT_AUTO_SERIALIZATION_COMPILER_RUN"];
+    pp.macros["QAS_QASC_RUN"];
     pp.macros["__cplusplus"];
 
     // Don't stumble over GCC extensions

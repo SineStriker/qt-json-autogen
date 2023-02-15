@@ -3,7 +3,7 @@
 
 #include "qas_enum_types.h"
 
-#ifndef QT_AUTO_SERIALIZATION_COMPILER_RUN
+#ifndef QAS_QASC_RUN
 
 #define QAS_ATTRIBUTE(ATTR)
 
