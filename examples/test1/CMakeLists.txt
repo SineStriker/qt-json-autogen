@@ -24,3 +24,5 @@ if(TRUE)
     qas_wrap_cpp(_qasc_src ${_headers} TARGET ${PROJECT_NAME})
     target_sources(${PROJECT_NAME} PRIVATE ${_qasc_src})
 endif()
+
+target_link_libraries(${PROJECT_NAME} PRIVATE qastool::qasstream)

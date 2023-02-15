@@ -6,13 +6,12 @@ if(WIN32)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /utf-8")
 endif()
 
+find_package(qastool REQUIRED COMPONENTS qasstream qasc)
+
 # Add modules
 include(../scripts/cmake/All.cmake)
 
-include(../QasMacros.cmake)
-
 # Add includes
-include_directories(../include)
 
 add_subdirectory(test1)
 

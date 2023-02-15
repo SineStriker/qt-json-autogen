@@ -258,7 +258,7 @@ int runMoc(int argc, char **argv) {
     // If you use this code as an example for a translated app, make sure to translate the strings.
     QCommandLineParser parser;
     parser.setApplicationDescription(
-        QStringLiteral("Qt Auto Serialization Compiler version %1 (Qt %2)")
+        QStringLiteral("Qt Auto Serialization Compiler version %1 (Qt %2), based on MOC")
             .arg(APP_VERSION, QString::fromLatin1(QT_VERSION_STR)));
     parser.addHelpOption();
     parser.addVersionOption();

@@ -1,16 +1,6 @@
 include(CMakeParseArguments)
 
-if (NOT TARGET Qas::qasc)
-    add_executable(Qas::qasc IMPORTED)
-
-    set(imported_location "${CMAKE_CURRENT_LIST_DIR}/scripts/qasc.exe")
-
-    set_target_properties(Qas::qasc PROPERTIES
-        IMPORTED_LOCATION ${imported_location}
-    )
-    # For CMake automoc feature
-    get_target_property(QASC_EXECUTABLE Qas::qasc LOCATION)
-endif()
+get_target_property(QASC_EXECUTABLE qastool::qasc LOCATION)
 
 # macro used to create the names of output files preserving relative dirs
 macro(qas_make_output_file infile prefix ext outfile )
