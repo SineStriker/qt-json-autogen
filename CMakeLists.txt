@@ -6,8 +6,14 @@ include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
 # ----------------------------------
-# Configuration
+# Configure Options
 # ----------------------------------
+option(QAS_BUILD_EXAMPLES "Build examples" ON)
+
+# ----------------------------------
+# Project Configuration
+# ----------------------------------
+set(QAS_ROOT_PROJECT on)
 set(QAS_INSTALL_NAME QasTool)
 set(QAS_CURRENT_VERSION ${PROJECT_VERSION})
 string(TOLOWER ${QAS_INSTALL_NAME} QAS_INSTALL_NAME_LOWER)
@@ -32,6 +38,10 @@ include(${PROJECT_MODULES_DIR}/All.cmake)
 add_subdirectory(src)
 
 add_subdirectory(tools)
+
+if(QAS_BUILD_EXAMPLES)
+    add_subdirectory(examples)
+endif()
 
 
 # ----------------------------------

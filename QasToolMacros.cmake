@@ -1,16 +1,22 @@
 include(CMakeParseArguments)
 
-get_target_property(QASTOOL_QASC_EXECUTABLE qastool::qasc LOCATION)
+if(TARGET qastool::qasc)
+    get_target_property(QASTOOL_QASC_EXECUTABLE qastool::qasc LOCATION)
+endif()
 
-get_target_property(QASTOOL_INCLUDE_DIRS qastool::qasstream INTERFACE_INCLUDE_DIRECTORIES)
+if(TARGET qastool::qasstream)
+    get_target_property(QASTOOL_INCLUDE_DIRS qastool::qasstream INTERFACE_INCLUDE_DIRECTORIES)
+endif()
 
 # macro used to create the names of output files preserving relative dirs
-macro(qas_make_output_file infile prefix ext outfile )
+macro(qas_make_output_file infile prefix ext outfile)
     string(LENGTH ${CMAKE_CURRENT_BINARY_DIR} _binlength)
     string(LENGTH ${infile} _infileLength)
     set(_checkinfile ${CMAKE_CURRENT_SOURCE_DIR})
+
     if(_infileLength GREATER _binlength)
         string(SUBSTRING "${infile}" 0 ${_binlength} _checkinfile)
+
         if(_checkinfile STREQUAL "${CMAKE_CURRENT_BINARY_DIR}")
             file(RELATIVE_PATH rel ${CMAKE_CURRENT_BINARY_DIR} ${infile})
         else()
@@ -19,12 +25,15 @@ macro(qas_make_output_file infile prefix ext outfile )
     else()
         file(RELATIVE_PATH rel ${CMAKE_CURRENT_SOURCE_DIR} ${infile})
     endif()
+
     if(CMAKE_HOST_WIN32 AND rel MATCHES "^([a-zA-Z]):(.*)$") # absolute path
         set(rel "${CMAKE_MATCH_1}_${CMAKE_MATCH_2}")
     endif()
+
     set(_outfile "${CMAKE_CURRENT_BINARY_DIR}/${rel}")
     string(REPLACE ".." "__" _outfile ${_outfile})
     get_filename_component(outpath ${_outfile} PATH)
+
     if(CMAKE_VERSION VERSION_LESS "3.14")
         get_filename_component(_outfile_ext ${_outfile} EXT)
         get_filename_component(_outfile_ext ${_outfile_ext} NAME_WE)
@@ -33,10 +42,10 @@ macro(qas_make_output_file infile prefix ext outfile )
     else()
         get_filename_component(_outfile ${_outfile} NAME_WLE)
     endif()
+
     file(MAKE_DIRECTORY ${outpath})
     set(${outfile} ${outpath}/${prefix}${_outfile}.${ext})
 endmacro()
-
 
 macro(qas_get_qasc_flags _qasc_flags)
     set(${_qasc_flags})
@@ -56,6 +65,7 @@ macro(qas_get_qasc_flags _qasc_flags)
     endforeach()
 
     get_directory_property(_defines COMPILE_DEFINITIONS)
+
     foreach(_current ${_defines})
         set(${_qasc_flags} ${${_qasc_flags}} "-D${_current}")
     endforeach()
@@ -63,11 +73,11 @@ macro(qas_get_qasc_flags _qasc_flags)
     if(WIN32)
         set(${_qasc_flags} ${${_qasc_flags}} -DWIN32)
     endif()
-    if (MSVC)
+
+    if(MSVC)
         set(${_qasc_flags} ${${_qasc_flags}} --compiler-flavor=msvc)
     endif()
 endmacro()
-
 
 # helper macro to set up a moc rule
 function(qas_create_qasc_command infile outfile qasc_flags qasc_options qasc_target qasc_depends)
@@ -82,9 +92,10 @@ function(qas_create_qasc_command infile outfile qasc_flags qasc_options qasc_tar
     if(_qasc_outfile_dir)
         set(_qasc_working_dir WORKING_DIRECTORY ${_qasc_outfile_dir})
     endif()
-    set (_qasc_parameters_file ${outfile}_parameters)
-    set (_qasc_parameters ${qasc_flags} ${qasc_options} -o "${outfile}" "${infile}")
-    string (REPLACE ";" "\n" _qasc_parameters "${_qasc_parameters}")
+
+    set(_qasc_parameters_file ${outfile}_parameters)
+    set(_qasc_parameters ${qasc_flags} ${qasc_options} -o "${outfile}" "${infile}")
+    string(REPLACE ";" "\n" _qasc_parameters "${_qasc_parameters}")
 
     if(qasc_target)
         set(_qasc_parameters_file ${_qasc_parameters_file}$<$<BOOL:$<CONFIGURATION>>:_$<CONFIGURATION>>)
@@ -94,7 +105,7 @@ function(qas_create_qasc_command infile outfile qasc_flags qasc_options qasc_tar
         set(targetincludes "$<$<BOOL:${targetincludes}>:-I$<JOIN:${targetincludes},\n-I>\n>")
         set(targetdefines "$<$<BOOL:${targetdefines}>:-D$<JOIN:${targetdefines},\n-D>\n>")
 
-        file (GENERATE
+        file(GENERATE
             OUTPUT ${_qasc_parameters_file}
             CONTENT "${targetdefines}${targetincludes}${_qasc_parameters}\n"
         )
@@ -107,24 +118,26 @@ function(qas_create_qasc_command infile outfile qasc_flags qasc_options qasc_tar
 
     set(_qasc_extra_parameters_file @${_qasc_parameters_file})
     add_custom_command(OUTPUT ${outfile}
-                       COMMAND ${QASTOOL_QASC_EXECUTABLE} ${_qasc_extra_parameters_file}
-                       DEPENDS ${infile} ${qasc_depends}
-                       ${_qasc_working_dir}
-                       VERBATIM)
+        COMMAND ${QASTOOL_QASC_EXECUTABLE} ${_qasc_extra_parameters_file}
+        DEPENDS ${infile} ${qasc_depends}
+        ${_qasc_working_dir}
+        VERBATIM)
 endfunction()
-
 
 function(qas_generate_moc infile outfile)
     # get include dirs and flags
     qas_get_qasc_flags(qasc_flags)
     get_filename_component(abs_infile ${infile} ABSOLUTE)
     set(_outfile "${outfile}")
+
     if(NOT IS_ABSOLUTE "${outfile}")
         set(_outfile "${CMAKE_CURRENT_BINARY_DIR}/${outfile}")
     endif()
-    if ("x${ARGV2}" STREQUAL "xTARGET")
+
+    if("x${ARGV2}" STREQUAL "xTARGET")
         set(qasc_target ${ARGV3})
     endif()
+
     qas_create_qasc_command(${abs_infile} ${_outfile} "${qasc_flags}" "" "${qasc_target}" "")
 endfunction()
 
@@ -149,5 +162,6 @@ function(qas_wrap_cpp outfiles)
         qas_create_qasc_command(${it} ${outfile} "${qasc_flags}" "${qasc_options}" "${qasc_target}" "${qasc_depends}")
         list(APPEND ${outfiles} ${outfile})
     endforeach()
+
     set(${outfiles} ${${outfiles}} PARENT_SCOPE)
 endfunction()

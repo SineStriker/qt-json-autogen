@@ -56,12 +56,14 @@ target_include_directories(${MOC_LIB_TARGET} PUBLIC $<BUILD_INTERFACE:${CMAKE_CU
 # ----------------------------------
 # moc.pro
 # ----------------------------------
-set(MOC_EXE_TARGET ${PROJECT_NAME})
+if(${QT_VERSION_MAJOR} EQUAL 5)
+    set(MOC_EXE_TARGET ${PROJECT_NAME})
 
-add_executable(${MOC_EXE_TARGET} moc.h moc.cpp generator.h generator.cpp main.cpp)
+    add_executable(${MOC_EXE_TARGET} moc.h moc.cpp generator.h generator.cpp main.cpp)
 
-target_link_libraries(${MOC_EXE_TARGET} PRIVATE ${MOC_LIB_TARGET})
+    target_link_libraries(${MOC_EXE_TARGET} PRIVATE ${MOC_LIB_TARGET})
 
-set_target_properties(${MOC_EXE_TARGET}
-    PROPERTIES OUTPUT_NAME ${PROJECT_NAME}
-)
+    set_target_properties(${MOC_EXE_TARGET}
+        PROPERTIES OUTPUT_NAME ${PROJECT_NAME}
+    )
+endif()

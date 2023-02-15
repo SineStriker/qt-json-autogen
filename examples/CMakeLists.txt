@@ -6,7 +6,13 @@ if(WIN32)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /utf-8")
 endif()
 
-find_package(qastool REQUIRED)
+if(QAS_ROOT_PROJECT)
+    include(../QasToolMacros.cmake)
+    set(QASTOOL_QASC_EXECUTABLE "$<TARGET_FILE:qasc>")
+    set(QASTOOL_INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/../include")
+else()
+    find_package(qastool REQUIRED)
+endif()
 
 include_directories(${QASTOOL_INCLUDE_DIRS})
 
@@ -14,7 +20,6 @@ include_directories(${QASTOOL_INCLUDE_DIRS})
 include(../scripts/cmake/All.cmake)
 
 # Add includes
-
 add_subdirectory(test1)
 
 add_subdirectory(test2)

@@ -63,7 +63,11 @@ static QByteArray normalizeType(const QByteArray &ba, bool fixScope = false) {
         }
     }
     *d = '\0';
+#if QT_VERSION_MAJOR > 5
+    QByteArray result = normalizeTypeInternal(buf, d);
+#else
     QByteArray result = normalizeTypeInternal(buf, d, fixScope);
+#endif
     if (buf != stackbuf)
         delete[] buf;
     return result;
@@ -251,28 +255,28 @@ Type Moc::parseType() {
     return type;
 }
 
-//TemplateDef Moc::parseTemplate() {
-//    TemplateDef def;
-//    next(LANGLE);
-//    def.begin = index - 1;
-//    until(RANGLE);
-//    def.end = index;
-//    index = def.begin + 1;
-//    while (inScope(&def) && hasNext()) {
-//        if (!test(CLASS) && !test(TYPENAME)) {
-//            parseType();
-//        } else {
-//            if (test(IDENTIFIER)) {
-//                def.typeNames.append(lexem());
-//            } else {
-//                def.typeNames.append(QByteArray());
-//            }
-//        }
-//        if (!until(COMMA))
-//            break;
-//    }
-//    return def;
-//}
+// TemplateDef Moc::parseTemplate() {
+//     TemplateDef def;
+//     next(LANGLE);
+//     def.begin = index - 1;
+//     until(RANGLE);
+//     def.end = index;
+//     index = def.begin + 1;
+//     while (inScope(&def) && hasNext()) {
+//         if (!test(CLASS) && !test(TYPENAME)) {
+//             parseType();
+//         } else {
+//             if (test(IDENTIFIER)) {
+//                 def.typeNames.append(lexem());
+//             } else {
+//                 def.typeNames.append(QByteArray());
+//             }
+//         }
+//         if (!until(COMMA))
+//             break;
+//     }
+//     return def;
+// }
 
 bool Moc::parseEnum(EnumDef *def) {
     bool isTypdefEnum = false; // typedef enum { ... } Foo;
