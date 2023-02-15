@@ -1,4 +1,4 @@
-project(qasc VERSION 0.0.1.2 LANGUAGES CXX)
+project(qasc VERSION ${QAS_CURRENT_VERSION} LANGUAGES CXX)
 
 # ----------------------------------
 # Add modules

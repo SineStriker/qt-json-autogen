@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.17)
 
-project(qas_tool VERSION 0.0.1.2)
+project(qas_tool VERSION 0.0.1.3)
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
@@ -9,9 +9,9 @@ include(CMakePackageConfigHelpers)
 # Configuration
 # ----------------------------------
 set(QAS_INSTALL_NAME QasTool)
+set(QAS_CURRENT_VERSION ${PROJECT_VERSION})
 string(TOLOWER ${QAS_INSTALL_NAME} QAS_INSTALL_NAME_LOWER)
 set(PROJECT_MODULES_DIR ${CMAKE_CURRENT_SOURCE_DIR}/scripts/cmake)
-
 
 # ----------------------------------
 # Build options
