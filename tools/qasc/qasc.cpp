@@ -432,8 +432,14 @@ void Moc::parseFunctionArguments(FunctionDef *def) {
 }
 
 bool Moc::parseMemberVariable(ArgumentDef *def) {
+    // Skip when meet function identifiers
+    while (test(EXPLICIT) || test(INLINE) || test(STATIC) || test(VIRTUAL) || test(TILDE) || skipCxxAttributes()) {
+        return false;
+    }
     ArgumentDef &arg = *def;
     arg.type = parseType();
+    if (arg.type.name.isEmpty())
+        return false;
     if (test(IDENTIFIER))
         arg.name = lexem();
     while (test(LBRACK)) {
@@ -445,6 +451,12 @@ bool Moc::parseMemberVariable(ArgumentDef *def) {
     }
     arg.normalizedType = normalizeType(QByteArray(arg.type.name + ' ' + arg.rightType));
     arg.typeNameForCast = normalizeType(QByteArray(noRef(arg.type.name) + "(*)" + arg.rightType));
+
+    // int a = 1;
+    if (test(EQ)) {
+        return until(SEMIC);
+    }
+
     return test(SEMIC);
 }
 
@@ -520,6 +532,13 @@ bool Moc::parseMaybeFunction(const ClassDef *cdef, FunctionDef *def) {
             return false;
     }
     def->isConst = test(CONST);
+
+    if (def->isVirtual) {
+        if (test(EQ)) {
+            return until(SEMIC);
+        }
+    }
+
     return true;
 }
 
@@ -737,6 +756,7 @@ void Moc::parseEnv(Environment *env) {
             }
             case LBRACE:
                 until(RBRACE);
+                templateClass = false;
                 break;
             case SEMIC:
             case RBRACE:

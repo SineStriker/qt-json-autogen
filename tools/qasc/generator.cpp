@@ -108,7 +108,7 @@ void Generator::generateCode() {
                 }
                 enums.insert(enumName);
 
-                generateEnums(prefix, enumName, it.value());
+                generateEnums(prefix.isEmpty() ? QByteArray() : prefix + "::", enumName, it.value());
                 continue;
             }
 
@@ -180,7 +180,7 @@ void Generator::generateCode() {
                 superNameList.append(superName);
             }
 
-            generateClass(prefix, className, superNameList, classDef);
+            generateClass(prefix.isEmpty() ? QByteArray() : prefix + "::", className, superNameList, classDef);
         }
     }
 }
@@ -206,14 +206,14 @@ void Generator::generateEnums(const QByteArray &ns, const QByteArray &qualified,
 
     // Generate deserializer
     // Declaration head
-    fmt = "QAS::JsonStream &%s::operator>>(QAS::JsonStream &_stream, %s &_var) {\n";
+    fmt = "QAS::JsonStream &%soperator>>(QAS::JsonStream &_stream, %s &_var) {\n";
     fprintf(fp, fmt, ns_str, type_str);
 
     // Convert to string
     fprintf(fp, "    QString _str;\n"
                 "    if (!QAS::JsonStreamUtils::parseAsString(_stream, typeid(_var).name(), &_str).good()) {\n"
                 "        return _stream;\n"
-                "    }\n");
+                "    }\n\n");
 
     // Define res
     fmt = "    %s _tmp{};\n";
@@ -246,7 +246,7 @@ void Generator::generateEnums(const QByteArray &ns, const QByteArray &qualified,
 
     // Generate serializer
     // Declaration head
-    fmt = "QAS::JsonStream &%s::operator<<(QAS::JsonStream &_stream, const %s &_var) {\n";
+    fmt = "QAS::JsonStream &%soperator<<(QAS::JsonStream &_stream, const %s &_var) {\n";
     fprintf(fp, fmt, ns_str, type_str);
 
     // Define res
@@ -294,14 +294,14 @@ void Generator::generateClass(const QByteArray &ns, const QByteArray &qualified,
 
     // Generate deserializer
     // Declaration head
-    fmt = "QAS::JsonStream &%s::operator>>(QAS::JsonStream &_stream, %s &_var) {\n";
+    fmt = "QAS::JsonStream &%soperator>>(QAS::JsonStream &_stream, %s &_var) {\n";
     fprintf(fp, fmt, ns_str, type_str);
 
     // Convert to object
     fprintf(fp, "    QJsonObject _obj;\n"
                 "    if (!QAS::JsonStreamUtils::parseAsObject(_stream, typeid(_var).name(), &_obj).good()) {\n"
                 "        return _stream;\n"
-                "    }");
+                "    }\n\n");
 
     // Define res
     fmt = "    %s _tmpVar{};\n"
@@ -312,7 +312,7 @@ void Generator::generateClass(const QByteArray &ns, const QByteArray &qualified,
     // Super classes
     for (const auto &super: supers) {
         const char *name_str = super.data();
-        fmt = "    _stream >> *reinterpret_cast<%s *>(&_tmpVar);\n"
+        fmt = "    _stream >> *static_cast<%s *>(&_tmpVar);\n"
               "    if (!_stream.good()) {\n"
               "        return _stream;\n"
               "    }\n";
@@ -347,7 +347,7 @@ void Generator::generateClass(const QByteArray &ns, const QByteArray &qualified,
 
     // Generate serializer
     // Declaration head
-    fmt = "QAS::JsonStream &%s::operator<<(QAS::JsonStream &_stream, const %s &_var) {\n";
+    fmt = "QAS::JsonStream &%soperator<<(QAS::JsonStream &_stream, const %s &_var) {\n";
     fprintf(fp, fmt, ns_str, type_str);
 
     // Define res
@@ -359,7 +359,7 @@ void Generator::generateClass(const QByteArray &ns, const QByteArray &qualified,
     for (const auto &super: supers) {
         fmt =
                 "    {\n"
-                "        QJsonObject _tmpObj = qAsClassToJson(*reinterpret_cast<const %s *>(&_var));\n"
+                "        QJsonObject _tmpObj = qAsClassToJson(*static_cast<const %s *>(&_var));\n"
                 "        for (auto it = _tmpObj.begin(); it != _tmpObj.end(); ++it) {\n"
                 "            _obj.insert(it.key(), it.value());\n"
                 "        }\n"

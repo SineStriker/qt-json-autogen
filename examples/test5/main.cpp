@@ -2,19 +2,22 @@
 #include <QJsonDocument>
 
 #include "classroom.h"
+#include "foo.h"
 
 int main(int argc, char *argv[]) {
     QCoreApplication a(argc, argv);
 
-    Rectangle rect{1, 2};
-    qDebug() << qAsAnyToJson(rect);
-
-    QJsonObject obj{
-            {"a", 2},
-            {"b", 5},
+    Class cls;
+    cls.className = "F114514";
+    cls.students = {
+            {"1", {"alice", Class::Student::Female, 18}},
+            {"2", {"bob",   Class::Student::Male,   17}},
+            {"3", {"mark",  Class::Student::Male,   19}},
     };
-    rect = _qAsJsonGetAny(obj);
-    qDebug() << qAsAnyToJson(rect);
+    cls.otherInfo = "PHP is the best programming language.";
+    qDebug().noquote() << QJsonDocument(qAsClassToJson(cls)).toJson();
+
+    qDebug().noquote() << QJsonDocument(qAsClassToJson(Messed())).toJson();
 
     return 0;
 }

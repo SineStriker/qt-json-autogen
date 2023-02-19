@@ -26,10 +26,12 @@
 #include <QHash>
 #include <QList>
 #include <QMap>
+#include <QSet>
 #include <QVector>
 
 #include <list>
 #include <map>
+#include <set>
 #include <unordered_map>
 #include <vector>
 
@@ -649,6 +651,17 @@ JsonStream &operator<<(JsonStream &stream, const std::list<T> &list) {
     return QAS::JsonStreamContainers::readList(stream, list);
 }
 
+// std::set
+template <class T>
+JsonStream &operator>>(JsonStream &stream, std::set<T> &list) {
+    return QAS::JsonStreamContainers::writeList(stream, list);
+}
+
+template <class T>
+JsonStream &operator<<(JsonStream &stream, const std::set<T> &list) {
+    return QAS::JsonStreamContainers::readList(stream, list);
+}
+
 // QList
 template <class T>
 JsonStream &operator>>(JsonStream &stream, QList<T> &list) {
@@ -657,6 +670,17 @@ JsonStream &operator>>(JsonStream &stream, QList<T> &list) {
 
 template <class T>
 JsonStream &operator<<(JsonStream &stream, const QList<T> &list) {
+    return QAS::JsonStreamContainers::readList(stream, list);
+}
+
+// QSet
+template <class T>
+JsonStream &operator>>(JsonStream &stream, QSet<T> &list) {
+    return QAS::JsonStreamContainers::writeList(stream, list);
+}
+
+template <class T>
+JsonStream &operator<<(JsonStream &stream, const QSet<T> &list) {
     return QAS::JsonStreamContainers::readList(stream, list);
 }
 
