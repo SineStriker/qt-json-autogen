@@ -4,8 +4,8 @@ if(TARGET qastool::qasc)
     get_target_property(QASTOOL_QASC_EXECUTABLE qastool::qasc LOCATION)
 endif()
 
-if(TARGET qastool::qasstream)
-    get_target_property(QASTOOL_INCLUDE_DIRS qastool::qasstream INTERFACE_INCLUDE_DIRECTORIES)
+if(TARGET qastool::core)
+    get_target_property(QASTOOL_INCLUDE_DIRS qastool::core INTERFACE_INCLUDE_DIRECTORIES)
 endif()
 
 # macro used to create the names of output files preserving relative dirs

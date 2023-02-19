@@ -64,17 +64,14 @@ struct Type {
 Q_DECLARE_TYPEINFO(Type, Q_MOVABLE_TYPE);
 
 struct ClassDef;
+
+struct JsonAttributes;
+
 struct EnumDef {
     QByteArray name;
     QByteArray enumName;
 
-    struct Value {
-        QByteArray name;
-        QByteArray attr;
-        bool ignore = false;
-    };
-
-    QVector<Value> values;
+    QVector<JsonAttributes> values;
 
     bool isEnumClass; // c++11 enum class
     Type enumType;
@@ -125,12 +122,19 @@ struct FunctionDef {
 };
 Q_DECLARE_TYPEINFO(FunctionDef, Q_MOVABLE_TYPE);
 
-struct MemberVariableDef : ArgumentDef {
-    bool ignore;
-    QByteArray attr;
-    FunctionDef::Access access;
+struct JsonAttributes {
+    FunctionDef::Access access = FunctionDef::Access::Public;
+    int lineNum = 0;
+    QByteArray filename;
 
-    MemberVariableDef() : ignore(false), access(FunctionDef::Public) {
+    QByteArray itemName;
+    QByteArray attr;
+    bool exclude = false;
+    bool include = false;
+};
+struct MemberVariableDef : ArgumentDef, JsonAttributes {
+    FunctionDef::Access access = FunctionDef::Public;
+    MemberVariableDef() {
     }
 };
 
@@ -143,53 +147,33 @@ Q_DECLARE_TYPEINFO(ClassInfoDef, Q_MOVABLE_TYPE);
 struct BaseDef {
     QByteArray classname;
     QByteArray qualified;
-    QMap<QByteArray, bool> enumDeclarations;
     QVector<EnumDef> enumList;
     int begin = 0;
     int end = 0;
 };
 
 struct ClassDef : BaseDef {
-
-    struct SuperClassInfo {
-        FunctionDef::Access access = FunctionDef::Access::Public;
-        int lineNum = 0;
-    };
-
-    QVector<QPair<QByteArray, SuperClassInfo>> superclassList;
+    QVector<QPair<QByteArray, JsonAttributes>> superclassList;
 
     QVector<MemberVariableDef> memberVars;
-
-    struct Interface {
-        Interface() {
-        } // for QVector, don't use
-        inline explicit Interface(const QByteArray &_className) : className(_className) {
-        }
-        QByteArray className;
-        QByteArray interfaceId;
-    };
-    QVector<QVector<Interface>> interfaceList;
-
-    QVector<FunctionDef> constructorList;
-    QVector<FunctionDef> signalList, slotList, methodList, publicList;
 
     QJsonObject toJson() const;
 };
 Q_DECLARE_TYPEINFO(ClassDef, Q_MOVABLE_TYPE);
-Q_DECLARE_TYPEINFO(ClassDef::Interface, Q_MOVABLE_TYPE);
 
 struct NamespaceDef : BaseDef {};
 
 Q_DECLARE_TYPEINFO(NamespaceDef, Q_MOVABLE_TYPE);
 
-struct TemplateDef : BaseDef {
-    QByteArrayList typeNames;
-};
+// struct TemplateDef : BaseDef {
+//     QByteArrayList typeNames;
+// };
 
 struct DeclareItem {
     QByteArray token;
     int lineNum;
     QByteArray filename;
+    bool gen;
 };
 
 struct Environment {
@@ -206,21 +190,24 @@ struct Environment {
     }
 
     QSet<QByteArray> usedNamespaces;
+    QHash<QByteArray, QByteArray> usedClasses;
     QHash<QByteArray, QByteArray> aliasNamespaces;
-    QHash<QByteArray, Type> aliasClasses;
+    QHash<QByteArray, QByteArray> aliasClasses;
 
     Environment *parent;
-    QHash<QByteArray, QList<QSharedPointer<Environment>>> children;
+    QHash<QByteArray, QSharedPointer<Environment>> children;
     QHash<QByteArray, EnumDef> enums;
+    QSet<QByteArray> predeclaredClasses;
 
-    QList<DeclareItem> enumToGen;
     QList<DeclareItem> classToGen;
 
     Environment() : isRoot(true), isNamespace(false), parent(nullptr) {
     }
+
     Environment(NamespaceDef *ns, Environment *parent)
         : isRoot(false), isNamespace(true), ns(ns), parent(parent) {
     }
+
     Environment(ClassDef *cl, Environment *parent)
         : isRoot(false), isNamespace(false), cl(cl), parent(parent) {
     }
@@ -228,10 +215,8 @@ struct Environment {
 
 class Moc : public Parser {
 public:
-    Moc() : debugMode(false), noInclude(false) {
+    Moc() : noInclude(false), declareCount(0) {
     }
-
-    bool debugMode;
 
     QByteArray filename;
 
@@ -240,6 +225,7 @@ public:
     QVector<QByteArray> includeFiles;
 
     Environment rootEnv;
+    int declareCount;
 
     void parse();
     void parseEnv(Environment *env);
@@ -265,7 +251,8 @@ public:
     }
 
     Type parseType();
-    //    TemplateDef parseTemplate();
+    QByteArray parseNamespace();
+    // TemplateDef parseTemplate();
 
     bool parseEnum(EnumDef *def);
     bool parseMaybeFunction(const ClassDef *cdef, FunctionDef *def);

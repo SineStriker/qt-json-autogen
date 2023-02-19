@@ -1,4 +1,4 @@
-project(qasstream)
+project(core)
 
 # ----------------------------------
 # Add target

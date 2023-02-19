@@ -2,17 +2,17 @@ cmake_minimum_required(VERSION 3.17)
 
 project(examples)
 
-if(WIN32)
+if (WIN32)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /utf-8")
-endif()
+endif ()
 
-if(QAS_ROOT_PROJECT)
+if (QAS_ROOT_PROJECT)
     include(../QasToolMacros.cmake)
     set(QASTOOL_QASC_EXECUTABLE "$<TARGET_FILE:qasc>")
     set(QASTOOL_INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/../include")
-else()
+else ()
     find_package(qastool REQUIRED)
-endif()
+endif ()
 
 include_directories(${QASTOOL_INCLUDE_DIRS})
 
@@ -20,6 +20,6 @@ include_directories(${QASTOOL_INCLUDE_DIRS})
 include(../scripts/cmake/All.cmake)
 
 # Add includes
-add_subdirectory(test1)
+add_subdirectory(test4)
 
-add_subdirectory(test2)
+add_subdirectory(test5)

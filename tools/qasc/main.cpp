@@ -386,10 +386,6 @@ int runMoc(int argc, char **argv) {
     depFileRuleNameOption.setValueName(QStringLiteral("rule name"));
     parser.addOption(depFileRuleNameOption);
 
-    QCommandLineOption debugOption(QStringLiteral("debug"));
-    debugOption.setDescription(QStringLiteral("Add debug print in generated codes."));
-    parser.addOption(debugOption);
-
     parser.addPositionalArgument(QStringLiteral("[header-file]"),
                                  QStringLiteral("Header file to read from, otherwise stdin."));
     parser.addPositionalArgument(QStringLiteral("[@option-file]"),
@@ -414,10 +410,6 @@ int runMoc(int argc, char **argv) {
         parser.showHelp(1);
     } else if (!files.isEmpty()) {
         filename = files.first();
-    }
-
-    if (parser.isSet(debugOption)) {
-        moc.debugMode = true;
     }
 
     const bool ignoreConflictingOptions = parser.isSet(ignoreConflictsOption);
@@ -613,7 +605,7 @@ int runMoc(int argc, char **argv) {
     if (pp.preprocessOnly) {
         fprintf(out, "%s\n", composePreprocessorOutput(moc.symbols).constData());
     } else {
-        if (moc.rootEnv.enumToGen.isEmpty() && moc.rootEnv.classToGen.isEmpty())
+        if (moc.declareCount == 0)
             moc.note("No relevant classes found. No output generated.");
         else
             moc.generate(out, jsonOutput.data());

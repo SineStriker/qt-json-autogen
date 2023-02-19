@@ -49,6 +49,7 @@ void Parser::error(int rollback) {
     index -= rollback;
     error();
 }
+
 void Parser::error(const char *msg) {
     if (msg || error_msg)
         fprintf(stderr, ErrorFormatString "Error: %s\n",

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.17)
 
-project(qas_tool VERSION 0.0.1.5)
+project(qastool VERSION 0.0.2.1)
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
@@ -68,7 +68,7 @@ if(NOT QAS_SKIP_INSTALL)
         NO_CHECK_REQUIRED_COMPONENTS_MACRO
     )
 
-    install(TARGETS qasstream
+    install(TARGETS core
         EXPORT QasToolTargets
         RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
         LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}

@@ -41,6 +41,8 @@
 // for normalizeTypeInternal
 #include <private/qmetaobject_moc_p.h>
 
+#include "nameutil.h"
+
 QT_BEGIN_NAMESPACE
 
 // only moc needs this function
@@ -76,15 +78,16 @@ static QByteArray normalizeType(const QByteArray &ba, bool fixScope = false) {
 bool Moc::parseClassHead(ClassDef *def) {
     // figure out whether this is a class declaration, or only a
     // forward or variable declaration.
-    int i = 0;
-    Token token;
-    do {
-        token = lookup(i++);
-        if (token == COLON || token == LBRACE)
-            break;
-        if (token == SEMIC || token == RANGLE)
-            return false;
-    } while (token);
+
+//    int i = 0;
+//    Token token;
+//    do {
+//        token = lookup(i++);
+//        if (token == COLON || token == LBRACE)
+//            break;
+//        if (token == SEMIC || token == RANGLE)
+//            return false;
+//    } while (token);
 
     if (!test(IDENTIFIER)) // typedef struct { ... }
         return false;
@@ -130,13 +133,22 @@ bool Moc::parseClassHead(ClassDef *def) {
             else
                 test(PUBLIC);
             test(VIRTUAL);
+
+            bool exclude = test(QAS_EXCLUDE_TOKEN);
+            bool include = test(QAS_INCLUDE_TOKEN);
+
             const QByteArray type = parseType().name;
             // ignore the 'class Foo : BAR(Baz)' case
             if (test(LPAREN)) {
                 until(RPAREN);
             } else {
-                def->superclassList +=
-                    qMakePair(type, ClassDef::SuperClassInfo{access, symbol().lineNum});
+                JsonAttributes ja;
+                ja.access = access;
+                ja.lineNum = symbol().lineNum;
+                ja.filename = currentFilenames.top();
+                ja.exclude = exclude;
+                ja.include = include;
+                def->superclassList += qMakePair(type, ja);
             }
         } while (test(COMMA));
     }
@@ -220,8 +232,7 @@ Type Moc::parseType() {
             case NOTOKEN:
                 return type;
             default:
-                prev();
-                ;
+                prev();;
         }
         if (test(LANGLE)) {
             if (type.name.isEmpty()) {
@@ -256,6 +267,15 @@ Type Moc::parseType() {
     return type;
 }
 
+QByteArray Moc::parseNamespace() {
+    QByteArray ns;
+    bool tmp;
+    while ((ns += (tmp = test(SCOPE)) ? "::" : "", tmp) ||
+           (ns += (tmp = test(IDENTIFIER)) ? lexem() : "", tmp)) {
+    }
+    return ns;
+}
+
 // TemplateDef Moc::parseTemplate() {
 //     TemplateDef def;
 //     next(LANGLE);
@@ -263,7 +283,29 @@ Type Moc::parseType() {
 //     until(RANGLE);
 //     def.end = index;
 //     index = def.begin + 1;
+
+//     int idx = 0;
+//     int angleCnt = 0;
 //     while (inScope(&def) && hasNext()) {
+//         if (test(LANGLE)) {
+//             angleCnt++;
+//             continue;
+//         } else if (test(RANGLE)) {
+//             angleCnt--;
+//             continue;
+//         }
+//         if (angleCnt > 0) {
+//             next();
+//             continue;
+//         }
+
+//         if (test(CLASS) || test(TYPENAME)) {
+//             if (lookup(1) == IDENTIFIER) {
+//                 next();
+
+//             }
+//         }
+
 //         if (!test(CLASS) && !test(TYPENAME)) {
 //             parseType();
 //         } else {
@@ -292,8 +334,8 @@ bool Moc::parseEnum(EnumDef *def) {
             return false; // anonymous enum
         isTypdefEnum = true;
     }
-    if (test(COLON)) {               // C++11 strongly typed enum
-                                     // enum Foo : unsigned long { ... };
+    if (test(COLON)) { // C++11 strongly typed enum
+        // enum Foo : unsigned long { ... };
         def->enumType = parseType(); // ignore the result
     }
     if (!test(LBRACE))
@@ -311,20 +353,26 @@ bool Moc::parseEnum(EnumDef *def) {
             break;
         handleInclude();
         {
-            bool ignore = false;
+            bool exclude = false;
+            bool include = false;
             QByteArray attr;
 
             auto t = next();
             switch (t) {
-                case QAS_ATTRIBUTE_TOKEN: {
+                case QAS_ATTR_TOKEN: {
                     parseDeclareType(&attr);
                     attr.replace("\"", "");
                     next(IDENTIFIER);
                     break;
                 }
 
-                case QAS_IGNORE_TOKEN:
-                    ignore = true;
+                case QAS_EXCLUDE_TOKEN:
+                    exclude = true;
+                    next(IDENTIFIER);
+                    break;
+
+                case QAS_INCLUDE_TOKEN:
+                    include = true;
                     next(IDENTIFIER);
                     break;
 
@@ -336,7 +384,13 @@ bool Moc::parseEnum(EnumDef *def) {
                     break;
             }
 
-            def->values += {lexem(), attr, ignore};
+            JsonAttributes ja;
+            ja.itemName = lexem();
+            ja.attr = attr;
+            ja.exclude = exclude;
+            ja.include = include;
+
+            def->values += ja;
         }
         handleInclude();
         skipCxxAttributes();
@@ -368,7 +422,7 @@ void Moc::parseFunctionArguments(FunctionDef *def) {
         }
         arg.normalizedType = normalizeType(QByteArray(arg.type.name + ' ' + arg.rightType));
         arg.typeNameForCast =
-            normalizeType(QByteArray(noRef(arg.type.name) + "(*)" + arg.rightType));
+                normalizeType(QByteArray(noRef(arg.type.name) + "(*)" + arg.rightType));
         if (test(EQ))
             arg.isDefault = true;
         def->arguments += arg;
@@ -536,7 +590,6 @@ void Moc::parseEnv(Environment *env) {
                     if (test(IDENTIFIER)) {
                         QByteArray nsName = lexem();
                         QByteArrayList nested;
-                        nested.append(nsName);
                         while (test(SCOPE)) {
                             next(IDENTIFIER);
                             nested.append(nsName);
@@ -544,8 +597,7 @@ void Moc::parseEnv(Environment *env) {
                         }
                         if (test(EQ)) {
                             // namespace Foo = Bar::Baz;
-                            auto alias = lexemUntil(SEMIC).chopped(1).remove(0, 1);
-                            env->aliasNamespaces.insert(nsName, alias);
+                            env->aliasNamespaces.insert(nsName, parseNamespace());
                         } else if (test(LPAREN)) {
                             // Ignore invalid code such as: 'namespace __identifier("x")'
                             // (QTBUG-56634)
@@ -553,7 +605,7 @@ void Moc::parseEnv(Environment *env) {
                         } else if (!test(SEMIC)) {
                             NamespaceDef def;
                             def.classname = nsName;
-                            def.qualified = nested.join("::");
+                            def.qualified = (QByteArrayList(nested) << nsName).join("::");
 
                             next(LBRACE);
                             def.begin = index - 1;
@@ -561,10 +613,25 @@ void Moc::parseEnv(Environment *env) {
                             def.end = index;
                             index = def.begin + 1;
 
-                            auto newNamespace = new NamespaceDef(std::move(def));
-                            auto newEnv = QSharedPointer<Environment>::create(newNamespace, env);
-                            parseEnv(newEnv.data());
-                            env->children[nsName].append(newEnv);
+                            // Find target child env(maybe env itself)
+                            auto targetEnv = NameUtil::exploreEnv(env, nested, true);
+
+                            auto it = targetEnv->children.find(nsName);
+                            if (it == targetEnv->children.end()) {
+                                auto newNamespace = new NamespaceDef(std::move(def));
+                                auto newEnv =
+                                        QSharedPointer<Environment>::create(newNamespace, targetEnv);
+                                targetEnv->children.insert(nsName, newEnv);
+                                parseEnv(newEnv.data());
+                            } else {
+                                auto newEnv = it.value();
+                                if (!newEnv->isNamespace) {
+                                    error(QByteArray(nsName + " has been defined as a class!")
+                                                  .constData());
+                                }
+                                *newEnv->ns.data() = std::move(def);
+                                parseEnv(newEnv.data());
+                            }
                         }
                     }
                     goto end;
@@ -577,11 +644,7 @@ void Moc::parseEnv(Environment *env) {
                     goto end;
                 case USING:
                     if (test(NAMESPACE)) {
-                        QByteArray ns;
-                        bool tmp;
-                        while ((ns += (tmp = test(SCOPE)) ? "::" : "", tmp) ||
-                               (ns += (tmp = test(IDENTIFIER)) ? lexem() : "", tmp)) {
-                        }
+                        auto ns = parseNamespace();
                         env->usedNamespaces.insert(ns);
                         // Ignore invalid code such as: 'using namespace __identifier("x")'
                         // (QTBUG-63772)
@@ -591,27 +654,6 @@ void Moc::parseEnv(Environment *env) {
                         goto end;
                     }
                     break;
-                case QAS_ENUM_DECLARE_TOKEN: {
-                    if (env->isRoot && currentFilenames.size() <= 1) {
-                        QByteArray typeName;
-                        parseDeclareType(&typeName);
-                        env->enumToGen.append({typeName, symbol().lineNum, currentFilenames.top()});
-                    }
-                    goto end;
-                }
-                case QAS_JSON_DECLARE_TOKEN: {
-                    if (env->isRoot && currentFilenames.size() <= 1) {
-                        QByteArray typeName;
-                        parseDeclareType(&typeName);
-                        QByteArrayList types = typeName.split(',');
-                        for (auto &type : types) {
-                            type = type.trimmed();
-                        }
-                        env->classToGen.append(
-                            {types.front(), symbol().lineNum, currentFilenames.top()});
-                    }
-                    goto end;
-                }
                 default:
                     break;
             }
@@ -633,21 +675,51 @@ void Moc::parseEnv(Environment *env) {
 
         // Common
         switch (t) {
+            case QAS_JSON_TOKEN:
+            case QAS_JSON_NS_TOKEN: {
+                declareCount += currentFilenames.size() <= 1;
+
+                next(LPAREN);
+                Type type = parseType();
+                if (type.name.isEmpty()) {
+                    error();
+                }
+                next(RPAREN);
+                env->classToGen.append({type.name, symbol().lineNum, currentFilenames.top(),
+                                        currentFilenames.size() <= 1});
+                goto end;
+            }
             case USING: {
                 bool tmp;
                 QByteArray name;
-                if ((name = (tmp = test(IDENTIFIER)) ? lexem() : "", tmp) && test(EQ)) {
-                    bool tn = test(TYPENAME);
-                    Type type = parseType();
-                    env->aliasClasses.insert(name, type);
+                int rewind = index;
+                if ((name = (tmp = test(IDENTIFIER)) ? lexem() : "", tmp) && test(EQ) &&
+                    !test(TYPENAME)) {
+                    // using string = std::string;
+                    QByteArray className = parseType().name;
+                    if (className.isEmpty()) {
+                        error();
+                    }
+                    env->aliasClasses.insert(name, className);
+                } else {
+                    // using std::string;
+                    index = rewind;
+
+                    if (!test(TYPENAME)) {
+                        QByteArray className = parseType().name;
+                        if (className.isEmpty()) {
+                            error();
+                        }
+                        env->usedClasses.insert(QString(className).split("::").back().toUtf8(),
+                                                className);
+                    }
                 }
                 goto end;
             }
             case TYPEDEF: {
                 auto type = parseType();
                 if (test(IDENTIFIER)) {
-                    auto name = lexem();
-                    env->aliasClasses.insert(name, type);
+                    env->aliasClasses.insert(lexem(), type.name);
                 } else {
                     // Ignore function pointers
                 }
@@ -663,6 +735,9 @@ void Moc::parseEnv(Environment *env) {
                 }
                 break;
             }
+            case LBRACE:
+                until(RBRACE);
+                break;
             case SEMIC:
             case RBRACE:
                 templateClass = false;
@@ -676,13 +751,35 @@ void Moc::parseEnv(Environment *env) {
                 if (parseClassHead(&def)) {
                     auto name = def.classname;
 
-                    auto newClass = new ClassDef(std::move(def));
-                    auto newEnv = QSharedPointer<Environment>::create(newClass, env);
-                    newEnv->access = t == CLASS ? FunctionDef::Private : FunctionDef::Public;
-                    newEnv->templateClass = templateClass;
+                    auto names = NameUtil::splitScopes(def.qualified);
+                    Environment *targetEnv = nullptr;
 
-                    parseEnv(newEnv.data());
-                    env->children[name].append(newEnv);
+                    if (names.size() > 1) {
+                        // Search forward declaration
+                        NameUtil::considerPredefinedClass = true;
+                        auto res = NameUtil::getScope(&rootEnv, env, def.qualified, true);
+                        NameUtil::considerPredefinedClass = false;
+
+                        if (res.env && res.type == NameUtil::FindResult::PredefinedClass) {
+                            targetEnv = res.env;
+                        }
+                    } else {
+                        targetEnv = env;
+                    }
+
+                    if (targetEnv) {
+                        auto newClass = new ClassDef(std::move(def));
+                        auto newEnv = QSharedPointer<Environment>::create(newClass, targetEnv);
+                        newEnv->access = t == CLASS ? FunctionDef::Private : FunctionDef::Public;
+                        newEnv->templateClass = templateClass;
+
+                        targetEnv->children.insert(name, newEnv);
+
+                        parseEnv(newEnv.data());
+                    }
+
+                } else {
+                    env->predeclaredClasses.insert(def.classname);
                 }
                 break;
             }
@@ -690,24 +787,27 @@ void Moc::parseEnv(Environment *env) {
                 if (!isClass || !(currentFilenames.size() <= 1))
                     break;
 
-                bool ignore = false;
                 QByteArray attr;
+                bool exclude = false;
+                bool include = false;
+                QByteArray annotation;
                 if (currentFilenames.size() <= 1) {
                     switch (t) {
-                        case QAS_ATTRIBUTE_TOKEN: {
+                        case QAS_ATTR_TOKEN: {
+                            annotation = lexem();
                             parseDeclareType(&attr);
-                            if (!hasNext()) {
-                                error("QAS_ATTRIBUTE has no following member.");
-                            }
                             attr.replace("\"", "");
                             next();
                             break;
                         }
-                        case QAS_IGNORE_TOKEN:
-                            ignore = true;
-                            if (!hasNext()) {
-                                error("QAS_IGNORE has no following member.");
-                            }
+                        case QAS_EXCLUDE_TOKEN:
+                            annotation = lexem();
+                            exclude = true;
+                            next();
+                            break;
+                        case QAS_INCLUDE_TOKEN:
+                            annotation = lexem();
+                            include = true;
                             next();
                             break;
                         default:
@@ -715,6 +815,7 @@ void Moc::parseEnv(Environment *env) {
                     }
                 }
 
+                bool parseAnnotated = false;
                 FunctionDef funcDef;
                 funcDef.access = access;
                 int rewind = index--;
@@ -725,15 +826,21 @@ void Moc::parseEnv(Environment *env) {
                     if (parseMemberVariable(&arg)) {
                         arg.access = access;
                         arg.attr = attr;
-                        arg.ignore = ignore;
+                        arg.exclude = exclude;
+                        arg.include = include;
                         env->cl->memberVars += arg;
+                        parseAnnotated = true;
                     } else {
                         index = rewind;
                     }
                 }
+                if (!annotation.isEmpty() && !parseAnnotated) {
+                    error(
+                            QByteArray(annotation + " has no following member variable.").constData());
+                }
                 break;
         }
-    end:;
+        end:;
     }
 }
 
@@ -745,7 +852,7 @@ static QJsonObject encodeEnv(Environment *env) {
 
     // Enums
     QJsonArray enumArr;
-    for (const auto &item : qAsConst(env->enums)) {
+    for (const auto &item: qAsConst(env->enums)) {
         enumArr.append(item.toJson());
     }
     envObj.insert("enums", enumArr);
@@ -763,39 +870,49 @@ static QJsonObject encodeEnv(Environment *env) {
         for (auto it = classObj.begin(); it != classObj.end(); ++it) {
             envObj.insert(it.key(), it.value());
         }
-    } else {
-        QJsonArray enumNames;
-        for (const auto &item : qAsConst(env->enumToGen)) {
-            enumNames.append(QString::fromUtf8(item.token));
-        }
-        envObj.insert("declaredEnums", enumNames);
-
+    }
+    {
         QJsonArray classNames;
-        for (const auto &item : qAsConst(env->classToGen)) {
+        for (const auto &item: qAsConst(env->classToGen)) {
             classNames.append(QString::fromUtf8(item.token));
         }
-        envObj.insert("declaredClasses", classNames);
+        envObj.insert("declaredItems", classNames);
     }
 
     // Children
     QJsonArray childArr;
-    for (const auto &child : qAsConst(env->children)) {
-        for (const auto &item : child) {
-            childArr.append(encodeEnv(item.data()));
-        }
+    for (const auto &child: qAsConst(env->children)) {
+        childArr.append(encodeEnv(child.data()));
     }
     envObj.insert("children", childArr);
 
+    // using
+    {
+        QJsonArray nsArr;
+        for (auto it = env->usedNamespaces.begin(); it != env->usedNamespaces.end(); ++it) {
+            nsArr.append(QString::fromUtf8(*it));
+        }
+        QJsonObject clObj;
+        for (auto it = env->usedClasses.begin(); it != env->usedClasses.end(); ++it) {
+            clObj.insert(it.key(), QString::fromUtf8(it.value()));
+        }
+        envObj.insert("using", QJsonObject({{"namespaces", nsArr},
+                                            {"classes",    clObj}}));
+    }
+
     // Alias
-    QJsonObject nsObj;
-    for (auto it = env->aliasNamespaces.begin(); it != env->aliasNamespaces.end(); ++it) {
-        nsObj.insert(it.key(), QString::fromUtf8(it.value()));
+    {
+        QJsonObject nsObj;
+        for (auto it = env->aliasNamespaces.begin(); it != env->aliasNamespaces.end(); ++it) {
+            nsObj.insert(it.key(), QString::fromUtf8(it.value()));
+        }
+        QJsonObject clObj;
+        for (auto it = env->aliasClasses.begin(); it != env->aliasClasses.end(); ++it) {
+            clObj.insert(it.key(), QString::fromUtf8(it.value()));
+        }
+        envObj.insert("alias", QJsonObject({{"namespaces", nsObj},
+                                            {"classes",    clObj}}));
     }
-    QJsonObject clObj;
-    for (auto it = env->aliasClasses.begin(); it != env->aliasClasses.end(); ++it) {
-        nsObj.insert(it.key(), QString::fromUtf8(it.value().name));
-    }
-    envObj.insert("alias", QJsonObject({{"namespaces", nsObj}, {"classes", clObj}}));
 
     return envObj;
 }
@@ -821,7 +938,7 @@ void Moc::generate(FILE *out, FILE *jsonOutput) {
     if (!noInclude) {
         if (includePath.size() && !includePath.endsWith('/'))
             includePath += '/';
-        for (auto inc : includeFiles) {
+        for (auto inc: includeFiles) {
             if (inc.at(0) != '<' && inc.at(0) != '"') {
                 if (includePath.size() && includePath != "./")
                     inc.prepend(includePath);
@@ -849,7 +966,7 @@ void Moc::generate(FILE *out, FILE *jsonOutput) {
 
     fprintf(out, "\n\n");
 
-    Generator generator(&rootEnv, debugMode, out);
+    Generator generator(&rootEnv, out);
     generator.generateCode();
 
     if (jsonOutput) {
@@ -988,13 +1105,10 @@ QJsonObject ClassDef::toJson() const {
     cls[QLatin1String("qualifiedClassName")] = QString::fromUtf8(qualified.constData());
 
     QJsonArray memberInfos;
-    for (const auto &member : qAsConst(memberVars)) {
+    for (const auto &member: qAsConst(memberVars)) {
         QJsonObject obj;
         obj.insert("name", QString::fromUtf8(member.name));
         obj.insert("typeName", QString::fromUtf8(member.type.name));
-        obj.insert("attr", QString::fromUtf8(member.attr));
-        obj.insert("ignore", member.ignore);
-        obj.insert("access", member.access);
         memberInfos.append(obj);
     }
     if (!memberInfos.isEmpty()) {
@@ -1019,7 +1133,7 @@ QJsonObject ClassDef::toJson() const {
 
     QJsonArray superClasses;
 
-    for (const auto &super : qAsConst(superclassList)) {
+    for (const auto &super: qAsConst(superclassList)) {
         const auto name = super.first;
         const auto access = super.second.access;
         QJsonObject superCls;
@@ -1056,7 +1170,7 @@ QJsonObject FunctionDef::toJson() const {
     fdef[QLatin1String("returnType")] = QString::fromUtf8(normalizedType);
 
     QJsonArray args;
-    for (const ArgumentDef &arg : arguments)
+    for (const ArgumentDef &arg: arguments)
         args.append(arg.toJson());
 
     if (!args.isEmpty())
@@ -1100,11 +1214,10 @@ QJsonObject EnumDef::toJson() const {
     }
 
     QJsonArray valueArr;
-    for (const auto &val : qAsConst(values)) {
+    for (const auto &val: qAsConst(values)) {
         QJsonObject obj;
-        obj.insert("name", QString::fromUtf8(val.name));
+        obj.insert("name", QString::fromUtf8(val.itemName));
         obj.insert("attr", QString::fromUtf8(val.attr));
-        obj.insert("ignore", val.ignore);
         valueArr.append(obj);
     }
     if (!valueArr.isEmpty()) {

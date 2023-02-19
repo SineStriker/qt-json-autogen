@@ -5,20 +5,20 @@
 
 class Generator {
     Environment *rootEnv;
-    bool debug;
     FILE *fp;
 
 public:
-    explicit Generator(Environment *env, bool debug, FILE *outfile)
-        : rootEnv(env), debug(debug), fp(outfile){};
+    explicit Generator(Environment *env, FILE *outfile) : rootEnv(env), fp(outfile){};
 
     void generateCode();
 
 private:
-    void generateEnums(const QByteArray &qualified, const EnumDef &def);
+    // void generateUsing(const QByteArray &qualified);
 
-    void generateClass(const QByteArray &qualified, const QByteArrayList &supers,
-                       const ClassDef &def);
+    void generateEnums(const QByteArray &ns, const QByteArray &qualified, const EnumDef &def);
+
+    void generateClass(const QByteArray &ns, const QByteArray &qualified,
+                       const QByteArrayList &supers, const ClassDef &def);
 };
 
 #endif // GENERATOR_H

@@ -245,10 +245,11 @@ static const Keyword keywords[] = {
     { "Q_PRIVATE_PROPERTY", "Q_PRIVATE_PROPERTY_TOKEN" },
     { "Q_REVISION", "Q_REVISION_TOKEN" },
     /* Add QAS macros begin */
-    { "QAS_ATTRIBUTE", "QAS_ATTRIBUTE_TOKEN" },
-    { "QAS_IGNORE", "QAS_IGNORE_TOKEN" },
-    { "QAS_JSON_DECLARE", "QAS_JSON_DECLARE_TOKEN" },
-    { "QAS_ENUM_DECLARE", "QAS_ENUM_DECLARE_TOKEN" },
+    { "__qas_attr__", "QAS_ATTR_TOKEN" },
+    { "__qas_exclude__", "QAS_EXCLUDE_TOKEN" },
+    { "__qas_include__", "QAS_INCLUDE_TOKEN" },
+    { "QAS_JSON", "QAS_JSON_TOKEN" },
+    { "QAS_JSON_NS", "QAS_JSON_NS_TOKEN" },
     /* Add QAS macros end */
     { "\n", "NEWLINE" },
     { "\"", "QUOTE" },

@@ -44,7 +44,7 @@ A header-only library and an executable tool are provided.
 
     ```c++
     enum Name {
-        QAS_ATTRIBUTE("alice")
+        __qas_attr__("alice")
         Alice,
 
         Bob,
@@ -57,7 +57,7 @@ A header-only library and an executable tool are provided.
     ```
 + Use `QAS_ENUM_DECLARE` to define the serializer and deserializer of the enumeration, then it becomes serializable.
 
-+ The string format of a enumeration value is same as the one in definition, use `QAS_ATTRIBUTE` to override it, the quotes are optional.
++ The string format of a enumeration value is same as the one in definition, use `__qas_attr__` to override it, the quotes are optional.
 
 + If a enumeration value is marked with `QAS_IGNORE`, then it will be transparent during serialization.
 
@@ -106,9 +106,9 @@ A header-only library and an executable tool are provided.
     + Template classes or classes in the scope of a template class with more than one type are not supported by C style macros, you need to use `using` and then use its alias in the macro.
 
 + If the class is a derived class, all its publicly derived super classes will participate in serialization and deserialization.
-    + The complete form of the super class name will be automatically deduced, but it's recommended to specify the super class name completely at the derived class head.
+    + The complete form of the super class name will be automatically deduced(Not fully tested, don't be too complex), but it's recommended to specify the super class name completely at the derived class head.
 
-+ Use `QAS_ATTRIBUTE` to specify the key of a member in json object and `QAS_IGNORE` to ignore a member.
++ Use `__qas_attr__` to specify the key of a member in json object and `QAS_IGNORE` to ignore a member.
     + Only public members participate in serialization and deserialization.
 
 + The member to participating in serialization and deserialization should be one of the following 3:
@@ -184,7 +184,7 @@ qas_wrap_cpp(<VAR> src_file1 [src_file2 ...]
 ### QASC Tool
 
 + `qasc` is a lexical analyzer modified from `moc` in Qt5 tools, it preprocesses source files before building. If any one of the following identifiers appears in a given source file, `qasc` will generate implementations of serializers and deserializers into `stdout` or a new file.
-    + `QAS_ATTRIBUTE`
+    + `__qas_attr__`
     + `QAS_IGNORE`
     + `QAS_JSON_DECLARE`
     + `QAS_ENUM_DECLARE`

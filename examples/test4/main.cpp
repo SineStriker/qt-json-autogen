@@ -19,13 +19,12 @@ int main(int argc, char *argv[]) {
                 goto out;
             }
 
-            bool ok;
-            QDspxModel model = QASJsonType<QDspxModel>::fromObject(doc.object(), &ok);
-            if (ok) {
+            QDspxModel model;
+            if (qAsJsonTryGetClass(doc.object(), &model)) {
                 qDebug() << model.metadata.name;
-                QFile file("2.json");
+                file.setFileName("2.json");
                 if (file.open(QIODevice::WriteOnly)) {
-                    file.write(QJsonDocument(QASJsonType<QDspxModel>::toObject(model)).toJson());
+                    file.write(QJsonDocument(qAsClassToJson(model)).toJson());
                 }
                 file.close();
             } else {

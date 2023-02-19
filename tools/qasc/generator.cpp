@@ -1,211 +1,201 @@
 #include "generator.h"
 
-#ifdef Q_CC_MSVC
-#define ErrorFormatString "%s(%d): "
-#else
-#define ErrorFormatString "%s:%d: "
-#endif
+#include "nameutil.h"
 
-static void error(const QByteArray &msg, const QByteArray &filename, int lineNum,
-                  bool isError = true) {
-    if (isError) {
-        fprintf(stderr, ErrorFormatString "Error: %s\n", filename.constData(), lineNum,
-                msg.constData());
-        exit(EXIT_FAILURE);
-    } else {
-        fprintf(stderr, ErrorFormatString "Warning: %s\n", filename.constData(), lineNum,
-                msg.constData());
-    }
-}
+static QByteArray fixClassName(Environment *env, const QByteArray &unqualified) {
+    auto qualified = NameUtil::getQualifiedNameList(env);
 
-static QByteArrayList splitScopes(const QByteArray &name, bool ignoreTemplate = true) {
-    int cnt = 0;
-    QByteArrayList res;
-    QByteArray cur;
-    for (const auto &ch : name) {
-        switch (ch) {
-            case '<':
-                cnt++;
-                if (!ignoreTemplate) {
-                    cur += ch;
-                }
-                break;
-            case '>':
-                cnt--;
-                if (!ignoreTemplate) {
-                    cur += ch;
-                }
-                break;
-            default:
-                if (cnt > 0) {
-                    if (!ignoreTemplate) {
-                        cur += ch;
-                    }
-                    break;
-                }
-                if (ch == ':') {
-                    if (!cur.isEmpty()) {
-                        res += cur;
-                        cur.clear();
-                    }
-                } else {
-                    cur += ch;
-                }
-                break;
-        }
-    }
-    if (!cur.isEmpty()) {
-        res += cur;
-    }
-    return res;
-}
-
-static bool searchScope(const QByteArrayList &scopeNames, Environment *root, Environment *&out) {
-    Environment *env = root;
-    QByteArrayList names = scopeNames;
-
-    while (!names.isEmpty()) {
-        auto name = names.first();
-        names.pop_front();
-
-        while (env) {
-            // Search children
-            {
-                auto it = env->children.find(name);
-                if (it != env->children.end()) {
-                    const auto &inners = it.value();
-                    for (const auto &inner : inners) {
-                        if (searchScope(names, inner.data(), env)) {
-                            names.clear();
-                            break;
-                        }
-                    }
-                    break;
-                }
-            }
-
-            // Search namespace alias
-            {
-                auto it = env->aliasNamespaces.find(name);
-                if (it != env->aliasNamespaces.end()) {
-                    QByteArrayList aliasNames = splitScopes(it.value());
-                    names = aliasNames + names;
-                    break;
-                }
-            }
-
-            // Search class alias
-            {
-                auto it = env->aliasClasses.find(name);
-                if (it != env->aliasClasses.end()) {
-                    QByteArrayList aliasNames = splitScopes(it.value().name);
-                    names = aliasNames + names;
-                    break;
-                }
-            }
-
-            // Go upper if not in current layer
-            env = env->parent;
-        }
-
-        if (env)
-            continue;
-
-        return false;
+    auto names = NameUtil::splitScopes(unqualified, false);
+    if (env->templateClass) {
+        qualified.removeLast();
+        qualified.append(names.back());
     }
 
-    out = env;
-
-    return true;
-}
-
-QByteArray resolveSuperClass(const QByteArray &classQualified, const QByteArray &superName,
-                             Environment *rootEnv) {
-    QByteArray res;
-
-    QByteArrayList layerNames = splitScopes(classQualified);
-    layerNames.removeLast();
-
-    QByteArrayList layerFullNames = splitScopes(classQualified, false);
-    layerFullNames.removeLast();
-
-    QByteArrayList superNames = splitScopes(superName);
-    int i;
-    for (i = layerFullNames.size(); i >= 0; --i) {
-        Environment *env = nullptr;
-        auto scopeNames = layerNames.mid(0, i) + superNames;
-        if (!searchScope(scopeNames, rootEnv, env) || env->cl.isNull()) {
-            continue;
-        }
-        break;
-    }
-
-    if (i >= 0) {
-        res = layerFullNames.mid(0, i).join("::") + "::" + superName;
-    }
-    return res;
+    return qualified.join("::");
 }
 
 void Generator::generateCode() {
-    // Generate all enums
-    for (const auto &q : qAsConst(rootEnv->enumToGen)) {
-        const auto &name = q.token;
-        auto scopeNames = splitScopes(name);
-        Environment *env = nullptr;
-        if (!searchScope(scopeNames.mid(0, scopeNames.size() - 1), rootEnv, env)) {
-            goto enum_not_found;
+    QList<Environment *> envsToProcess;
+
+    std::list<Environment *> stack;
+    stack.push_back(rootEnv);
+    while (!stack.empty()) {
+        auto env = stack.front();
+        stack.pop_front();
+
+        if (!env->classToGen.isEmpty()) {
+            envsToProcess.append(env);
         }
 
-        {
-            auto it = env->enums.find(scopeNames.back());
-            if (it == env->enums.end()) {
-                goto enum_not_found;
-            }
-            generateEnums(name, it.value());
-            continue;
+        for (const auto &child : qAsConst(env->children)) {
+            stack.push_back(child.data());
         }
-
-    enum_not_found:
-        error(QString::asprintf("%s cannot be resolved", name.data()).toUtf8(), q.filename,
-              q.lineNum);
     }
 
-    // Generate all classes
-    for (const auto &q : qAsConst(rootEnv->classToGen)) {
-        const auto &name = q.token;
-        auto scopeNames = splitScopes(name);
-        Environment *env = nullptr;
-        if (!searchScope(scopeNames, rootEnv, env) || env->cl.isNull()) {
-            error(QString::asprintf("%s cannot be resolved", name.data()).toUtf8(), q.filename,
-                  q.lineNum);
-            continue;
+    // Generate header
+    //    QSet<Environment *> hasUsing;
+    //    for (auto env : qAsConst(envsToProcess)) {
+    //        // Back to nearest namespace
+    //        while (!env->isNamespace && !env->isRoot) {
+    //            if (env->templateClass) {
+    //                auto first = env->classToGen.front();
+    //                NameUtil::error("Q_JSON cannot be declared in template class!",
+    //                first.filename,
+    //                                first.lineNum);
+    //            }
+    //            env = env->parent;
+    //        }
+
+    //        // using foo::bar::operator<<;
+    //        if (env->isNamespace && !hasUsing.contains(env)) {
+    //            hasUsing.insert(env);
+    //            generateUsing(NameUtil::getQualifiedName(env));
+    //        }
+    //    }
+
+    //    fprintf(fp, "\n");
+
+    // Generate implementations
+    QSet<QByteArray> classes;
+    QSet<QByteArray> enums;
+    for (auto env : qAsConst(envsToProcess)) {
+        QByteArray prefix;
+        // Get namespace
+        {
+            auto curEnv = env;
+            // Back to nearest namespace
+            while (!curEnv->isNamespace && !curEnv->isRoot) {
+                if (curEnv->templateClass) {
+                    auto first = curEnv->classToGen.front();
+                    NameUtil::error("Q_JSON cannot be declared in template class!", first.filename,
+                                    first.lineNum);
+                }
+                curEnv = curEnv->parent;
+            }
+
+            if (curEnv->isNamespace) {
+                prefix = NameUtil::getQualifiedName(curEnv);
+            }
         }
 
-        auto &cl = *env->cl.data();
-        QByteArrayList qualifiedSuperNames;
-        for (const auto &item : qAsConst(cl.superclassList)) {
-            if (item.second.access != FunctionDef::Public){
+        for (const auto &item : qAsConst(env->classToGen)) {
+            if (!item.gen) {
                 continue;
             }
-            const auto &superName = item.first;
-            auto res = resolveSuperClass(name, superName, rootEnv);
-            if (res.isEmpty()) {
-                error(QString::asprintf("%s derived by %s cannot be resolved", superName.data(),
-                                        name.data())
-                          .toUtf8(),
-                      q.filename, item.second.lineNum);
-                continue;
-            }
-            qualifiedSuperNames.append(res);
-        }
 
-        generateClass(name, qualifiedSuperNames, cl);
+            const QByteArray &classToken = item.token;
+
+            auto res = NameUtil::getScope(rootEnv, env, classToken, true);
+            if (!res.env) {
+                NameUtil::error("Class " + classToken + " not found!", item.filename, item.lineNum);
+                return;
+            }
+            auto classDefEnv = res.env;
+
+            // Enumeration
+            if (res.type == NameUtil::FindResult::Enumeration) {
+                auto it = classDefEnv->enums.find(res.name);
+                if (it == classDefEnv->enums.end()) {
+                    NameUtil::error("Enumeration " + classToken + " not found!", item.filename,
+                                    item.lineNum);
+                }
+
+                auto enumName =
+                    NameUtil::combineNames(NameUtil::getQualifiedName(classDefEnv), res.name);
+                if (enums.contains(enumName)) {
+                    NameUtil::error("Enumeration " + enumName + " has duplicated declarations!",
+                                    item.filename, item.lineNum);
+                }
+                enums.insert(enumName);
+
+                generateEnums(prefix, enumName, it.value());
+                continue;
+            }
+
+            if (res.env->isNamespace || !res.env->cl) {
+                NameUtil::error(classToken + " is a namespace!", item.filename, item.lineNum);
+            }
+            const auto &classDef = *res.env->cl;
+
+            QByteArray className = fixClassName(classDefEnv, classToken);
+
+            // Search again to find a alias
+            {
+                auto res2 = NameUtil::getScope(rootEnv, env, classToken, false);
+                if (res2.type == NameUtil::FindResult::ImportedClass) {
+                    className =
+                        NameUtil::combineNames(NameUtil::getQualifiedName(res2.env), res2.name);
+                }
+            }
+
+            // This check won't work in intermediate scope which is a template class
+            if (classes.contains(className)) {
+                NameUtil::error("Class " + className + " has duplicated declarations!",
+                                item.filename, item.lineNum);
+            }
+            classes.insert(className);
+
+            // Class
+            QByteArrayList superNameList;
+
+            for (const auto &super : qAsConst(classDef.superclassList)) {
+                // Collect super class
+                const auto &superToken = super.first;
+                const auto &info = super.second;
+
+                // Check access
+                if (info.access == FunctionDef::Public) {
+                    if (info.exclude)
+                        continue;
+                } else {
+                    if (!info.include)
+                        continue;
+                }
+
+                auto superRes = NameUtil::getScope(rootEnv, classDefEnv, superToken, false);
+                if (!superRes.env) {
+                    NameUtil::error("Base class " + super.first + " not found!", info.filename,
+                                    info.lineNum);
+                    return;
+                }
+
+                QByteArray superName;
+                switch (superRes.type) {
+                    case NameUtil::FindResult::Enumeration:
+                        NameUtil::error("Base class " + superToken + " is a enumeration!",
+                                        info.filename, info.lineNum);
+                        break;
+                    case NameUtil::FindResult::ImportedClass:
+                        superName = NameUtil::combineNames(NameUtil::getQualifiedName(superRes.env),
+                                                           superRes.name);
+                        break;
+                    case NameUtil::FindResult::Scope:
+                        if (superRes.env->isNamespace) {
+                            NameUtil::error("Base class " + superToken + " is a namespace!",
+                                            info.filename, info.lineNum);
+                        }
+                        superName = fixClassName(superRes.env, superToken);
+                        break;
+                }
+                superNameList.append(superName);
+            }
+
+            generateClass(prefix, className, superNameList, classDef);
+        }
     }
 }
 
-void Generator::generateEnums(const QByteArray &qualified, const EnumDef &def) {
+// void Generator::generateUsing(const QByteArray &qualified) {
+//     fprintf(fp, "using %s::operator<<;\n", qualified.constData());
+//     fprintf(fp, "using %s::operator>>;\n", qualified.constData());
+//     fprintf(fp, "\n");
+// }
+
+void Generator::generateEnums(const QByteArray &ns, const QByteArray &qualified,
+                              const EnumDef &def) {
     const char *fmt;
     const char *type_str = qualified.data();
+    const char *ns_str = ns.data();
 
     // Title
     {
@@ -216,77 +206,89 @@ void Generator::generateEnums(const QByteArray &qualified, const EnumDef &def) {
 
     // Generate deserializer
     // Declaration head
-    fmt = "%s QASEnumType<%s>::fromString(const QString &s, bool *ok) {\n";
-    fprintf(fp, fmt, type_str, type_str);
+    fmt = "QAS::JsonStream &%s::operator>>(QAS::JsonStream &_stream, %s &_var) {\n";
+    fprintf(fp, fmt, ns_str, type_str);
+
+    // Convert to string
+    fprintf(fp, "    const QJsonValue &_data = _stream.data();\n"
+                "    if (!_data.isString()) {\n"
+                "        qAsDbg() << typeid(_var).name() << \": expect string, but get \" << "
+                "_data.type();\n"
+                "        _stream.setStatus(QAS::JsonStream::TypeNotMatch);\n"
+                "        return _stream;\n"
+                "    }\n"
+                "\n"
+                "    QString _str = _data.toString();\n");
 
     // Define res
-    fmt = "    %s res{};\n";
+    fmt = "    %s _tmp{};\n";
     fprintf(fp, fmt, type_str);
-    fprintf(fp, "    bool ok2 = true;\n");
 
     // Start branches
     fprintf(fp, "    ");
     for (const auto &item : def.values) {
-        if (item.ignore) {
+        if (item.exclude) {
             continue;
         }
-        QByteArray attr = item.attr.isEmpty() ? item.name : item.attr;
-        fmt = "if (s == \"%s\") {\n        res = %s::%s;\n    } else ";
-        fprintf(fp, fmt, attr.data(), type_str, item.name.data());
+        QByteArray attr = item.attr.isEmpty() ? item.itemName : item.attr;
+        fmt = "if (_str == \"%s\") {\n"
+              "        _tmp = %s::%s;\n"
+              "    } else ";
+        fprintf(fp, fmt, attr.data(), type_str, item.itemName.data());
     }
 
     fprintf(fp, " {\n");
 
-    // Debug mode
-    if (debug) {
-        fmt = "        qasDebug() << \"%s: unexpected token\" << s;\n";
-        fprintf(fp, fmt, type_str);
-    }
-
     // Last and end
-    fprintf(fp, "        ok2 = false;\n"
+    fprintf(fp, "        _stream.setStatus(QAS::JsonStream::UnlistedValue);\n"
                 "    }\n"
-                "    QAS_SET_OK(ok, ok2);\n"
-                "    return res;\n"
+                "    _var = _tmp;\n"
+                "\n"
+                "    return _stream;\n"
                 "}\n");
 
     fprintf(fp, "\n");
 
     // Generate serializer
     // Declaration head
-    fmt = "QString QASEnumType<%s>::toString(%s e) {\n";
-    fprintf(fp, fmt, type_str, type_str);
+    fmt = "QAS::JsonStream &%s::operator<<(QAS::JsonStream &_stream, const %s &_var) {\n";
+    fprintf(fp, fmt, ns_str, type_str);
 
     // Define res
-    fprintf(fp, "    QString res;\n"
-                "    switch (e) {\n");
+    fprintf(fp, "    _stream.resetStatus();\n"
+                "\n"
+                "    QString _tmp;\n"
+                "    switch (_var) {\n");
 
     // Start switch
     for (const auto &item : def.values) {
-        if (item.ignore) {
+        if (item.exclude) {
             continue;
         }
-        QByteArray attr = item.attr.isEmpty() ? item.name : item.attr;
+        QByteArray attr = item.attr.isEmpty() ? item.itemName : item.attr;
         fmt = "        case %s::%s:\n"
-              "            res = \"%s\";\n"
+              "            _tmp = \"%s\";\n"
               "            break;\n";
-        fprintf(fp, fmt, type_str, item.name.data(), attr.data());
+        fprintf(fp, fmt, type_str, item.itemName.data(), attr.data());
     }
 
     // Last and end
     fprintf(fp, "        default:\n"
                 "            break;\n"
                 "    }\n"
-                "    return res;\n"
+                "    _stream << _tmp;\n"
+                "\n"
+                "    return _stream;\n"
                 "}\n");
 
     fprintf(fp, "\n\n");
 }
 
-void Generator::generateClass(const QByteArray &qualified, const QByteArrayList &supers,
-                              const ClassDef &def) {
+void Generator::generateClass(const QByteArray &ns, const QByteArray &qualified,
+                              const QByteArrayList &supers, const ClassDef &def) {
     const char *fmt;
     const char *type_str = qualified.data();
+    const char *ns_str = ns.data();
 
     // Title
     {
@@ -297,87 +299,105 @@ void Generator::generateClass(const QByteArray &qualified, const QByteArrayList 
 
     // Generate deserializer
     // Declaration head
-    fmt = "%s QASJsonType<%s>::fromObject(const QJsonObject &obj, bool *ok) {\n";
-    fprintf(fp, fmt, type_str, type_str);
+    fmt = "QAS::JsonStream &%s::operator>>(QAS::JsonStream &_stream, %s &_var) {\n";
+    fprintf(fp, fmt, ns_str, type_str);
+
+    // Convert to object
+    fprintf(fp, "    const QJsonValue &_data = _stream.data();\n"
+                "    if (!_data.isObject()) {\n"
+                "        qAsDbg() << typeid(_var).name() << \": expect object, but get \" << "
+                "_data.type();\n"
+                "        _stream.setStatus(QAS::JsonStream::TypeNotMatch);\n"
+                "        return _stream;\n"
+                "    }\n"
+                "\n");
 
     // Define res
-    fmt = "    %s res;\n";
+    fmt = "    QJsonObject _obj = _data.toObject();\n"
+          "    %s _tmpVar{};\n"
+          "\n"
+          "    QAS::JsonStream _tmpStream;\n";
     fprintf(fp, fmt, type_str);
-    fprintf(fp, "    QJsonObject::ConstIterator it;\n"
-                "    bool ok2 = true;\n");
 
     // Super classes
     for (const auto &super : supers) {
-        fmt = "    *reinterpret_cast<%s *>(&res) = QASJsonType<%s>::fromObject(obj, &ok2);\n"
-              "    if (!ok2) {\n"
-              "        goto over;\n"
-              "    }\n";
         const char *name_str = super.data();
-        fprintf(fp, fmt, name_str, name_str);
+        fmt = "    _stream >> *reinterpret_cast<%s *>(&_tmpVar);\n"
+              "    if (!_stream.good()) {\n"
+              "        return _stream;\n"
+              "    }\n";
+        fprintf(fp, fmt, name_str);
     }
 
     // Start branches
     for (const auto &item : def.memberVars) {
-        if (item.ignore || item.access != FunctionDef::Public) {
-            continue;
+        if (item.access == FunctionDef::Public) {
+            if (item.exclude)
+                continue;
+        } else {
+            if (!item.include)
+                continue;
         }
         QByteArray attr = item.attr.isEmpty() ? item.name : item.attr;
-        fmt = "    it = obj.find(\"%s\");\n"
-              "    if (it != obj.end()) {\n"
-              "        res.%s = QASJsonType<decltype(res.%s)>::fromValue(it.value(), &ok2);\n"
-              "        if (!ok2) {\n";
         const char *name_str = item.name.data();
+        fmt = "    if (!(_tmpStream = QAS::JsonStreamUtils::parseObjectMember(_obj, \"%s\", "
+              "\"%s\", typeid(_tmpVar).name(), _tmpVar.%s)).good()) {\n"
+              "        _stream.setStatus(_tmpStream.status());\n"
+              "        return _stream;\n"
+              "    }\n";
         fprintf(fp, fmt, attr.data(), name_str, name_str);
-
-        if (debug) {
-            fmt = "            qasDebug() << \"%s: parse value failed, key: %s\";\n";
-            fprintf(fp, fmt, type_str, attr.data());
-        }
-
-        fprintf(fp, "            goto over;\n"
-                    "        }\n"
-                    "    }\n");
     }
 
     // Last and end
-    fprintf(fp, "over:\n"
-                "    QAS_SET_OK(ok, ok2);\n"
-                "    return res;\n"
+    fprintf(fp, "    _var = std::move(_tmpVar);\n"
+                "\n"
+                "    return _stream;\n"
                 "}\n");
 
     fprintf(fp, "\n");
 
     // Generate serializer
     // Declaration head
-    fmt = "QJsonObject QASJsonType<%s>::toObject(const %s &cls) {\n";
-    fprintf(fp, fmt, type_str, type_str);
+    fmt = "QAS::JsonStream &%s::operator<<(QAS::JsonStream &_stream, const %s &_var) {\n";
+    fprintf(fp, fmt, ns_str, type_str);
 
     // Define res
-    fprintf(fp, "    QJsonObject res, tmp;\n");
+    fprintf(fp, "    _stream.resetStatus();\n"
+                "\n"
+                "    QJsonObject _obj;\n");
 
     // Super classes
     for (const auto &super : supers) {
-        fmt = "    tmp = QASJsonType<%s>::toObject(cls);\n"
-              "    for (auto it = tmp.begin(); it != tmp.end(); ++it) {\n"
-              "        res.insert(it.key(), it.value());\n"
-              "    }\n";
+        fmt =
+            "    {\n"
+            "        QJsonObject _tmpObj = qAsClassToJson(*reinterpret_cast<const %s *>(&_var));\n"
+            "        for (auto it = _tmpObj.begin(); it != _tmpObj.end(); ++it) {\n"
+            "            _obj.insert(it.key(), it.value());\n"
+            "        }\n"
+            "    }\n";
         const char *name_str = super.data();
         fprintf(fp, fmt, name_str);
     }
 
     // Start switch
     for (const auto &item : def.memberVars) {
-        if (item.ignore || item.access != FunctionDef::Public) {
-            continue;
+        if (item.access == FunctionDef::Public) {
+            if (item.exclude)
+                continue;
+        } else {
+            if (!item.include)
+                continue;
         }
         QByteArray attr = item.attr.isEmpty() ? item.name : item.attr;
-        fmt = "    res.insert(\"%s\", QASJsonType<decltype(cls.%s)>::toValue(cls.%s));\n";
+        fmt = "    _obj.insert(\"%s\", QAS::JsonStream::fromValue(_var.%s).data());\n";
         const char *name_str = item.name.data();
-        fprintf(fp, fmt, attr.data(), name_str, name_str);
+        fprintf(fp, fmt, attr.data(), name_str);
     }
 
     // Last and end
-    fprintf(fp, "    return res;\n"
+    fprintf(fp, "    _stream << _obj;\n"
+                "\n"
+                "    return _stream;\n"
                 "}\n");
 
     fprintf(fp, "\n\n");
