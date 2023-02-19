@@ -111,7 +111,6 @@ public:
     JsonStream &operator>>(QJsonValue &val);
     JsonStream &operator>>(QJsonArray &arr);
     JsonStream &operator>>(QJsonObject &obj);
-
     JsonStream &operator<<(qint8 sc);
     JsonStream &operator<<(quint8 c);
     JsonStream &operator<<(qint16 s);
@@ -476,24 +475,58 @@ namespace JsonStreamPrivate {
 
 namespace JsonStreamUtils {
 
+    inline JsonStream &parseAsArray(JsonStream &stream, const QByteArray &typeName, QJsonArray *out) {
+        stream.resetStatus();
+        const QJsonValue &_data = stream.data();
+        if (!_data.isArray()) {
+            qAsDbg() << typeName << ": expect array, but get " << _data.type();
+            stream.setStatus(QAS::JsonStream::TypeNotMatch);
+        } else {
+            *out = _data.toArray();
+        }
+        return stream;
+    }
+
+    inline JsonStream &parseAsObject(JsonStream &stream, const QByteArray &typeName, QJsonObject *out) {
+        stream.resetStatus();
+        const QJsonValue &_data = stream.data();
+        if (!_data.isObject()) {
+            qAsDbg() << typeName << ": expect object, but get " << _data.type();
+            stream.setStatus(QAS::JsonStream::TypeNotMatch);
+        } else {
+            *out = _data.toObject();
+        }
+        return stream;
+    }
+
+    inline JsonStream &parseAsString(JsonStream &stream, const QByteArray &typeName, QString *out) {
+        stream.resetStatus();
+        const QJsonValue &_data = stream.data();
+        if (!_data.isString()) {
+            qAsDbg() << typeName << ": expect string, but get " << _data.type();
+            stream.setStatus(QAS::JsonStream::TypeNotMatch);
+        } else {
+            *out = _data.toString();
+        }
+        return stream;
+    }
+
     template <class T>
-    JsonStream parseObjectMember(const QJsonObject &obj, const QByteArray &key, const QByteArray &memberName,
-                                 const QByteArray &name, T &ref) {
+    JsonStream parseObjectMember(const QJsonObject &obj, const QByteArray &key, const QByteArray &typeName, T *out) {
         auto it = obj.find(key);
         QAS::JsonStream tmpStream;
         if (it != obj.end()) {
             tmpStream << it.value();
-            tmpStream >> ref;
+            tmpStream >> *out;
 
             // If failed
             if (!tmpStream.good()) {
-                qAsDbg() << name << ": fail at key " << memberName;
+                qAsDbg() << typeName << ": fail at key " << key;
                 tmpStream.setStatus(tmpStream.status());
             }
         } else {
             tmpStream.setStatus(JsonStream::KeyNotFound);
         }
-
         return tmpStream;
     };
 
@@ -508,18 +541,13 @@ namespace JsonStreamContainers {
     // List Implementations
     template <class LIST>
     JsonStream &writeList(JsonStream &stream, LIST &list) {
-        stream.resetStatus();
-
         // Check type
-        const auto &data = stream.data();
-        if (!data.isArray()) {
-            qAsDbg() << typeid(list).name() << ": expect array, but get " << data.type();
-            stream.setStatus(JsonStream::TypeNotMatch);
+        QJsonArray arr;
+        if (!JsonStreamUtils::parseAsArray(stream, typeid(list).name(), &arr).good()) {
             return stream;
         }
 
         // Write
-        QJsonArray arr = data.toArray();
         LIST tmpList;
         for (const auto &item : qAsConst(arr)) {
             JsonStream tmpStream(item);
@@ -554,16 +582,11 @@ namespace JsonStreamContainers {
     // Map Implementations
     template <class MAP, class OP>
     JsonStream &writeMap(JsonStream &stream, MAP &map, OP op) {
-        stream.resetStatus(); // Reset to Ok
-
-        // Check json data type
-        const auto &data = stream.data();
-        if (!data.isObject()) {
-            qAsDbg() << typeid(map).name() << ": expect object, but get " << data.type();
-            stream.setStatus(JsonStream::TypeNotMatch);
+        // Check type
+        QJsonObject obj;
+        if (!JsonStreamUtils::parseAsObject(stream, typeid(map).name(), &obj).good()) {
             return stream;
         }
-        QJsonObject obj = data.toObject();
         MAP tmpMap;
 
         for (auto it = obj.begin(); it != obj.end(); ++it) {
@@ -638,6 +661,7 @@ JsonStream &operator<<(JsonStream &stream, const QList<T> &list) {
 }
 
 #if QT_MAJOR_VERSION <= 5
+
 // QVector
 template <class T>
 JsonStream &operator>>(JsonStream &stream, QVector<T> &list) {
@@ -657,6 +681,7 @@ inline JsonStream &operator>>(JsonStream &stream, QStringList &list) {
 inline JsonStream &operator<<(JsonStream &stream, const QStringList &list) {
     return QAS::JsonStreamContainers::readList(stream, list);
 }
+
 #endif
 
 // STL map operators

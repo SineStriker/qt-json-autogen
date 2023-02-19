@@ -27,7 +27,7 @@ void Generator::generateCode() {
             envsToProcess.append(env);
         }
 
-        for (const auto &child : qAsConst(env->children)) {
+        for (const auto &child: qAsConst(env->children)) {
             stack.push_back(child.data());
         }
     }
@@ -58,7 +58,7 @@ void Generator::generateCode() {
     // Generate implementations
     QSet<QByteArray> classes;
     QSet<QByteArray> enums;
-    for (auto env : qAsConst(envsToProcess)) {
+    for (auto env: qAsConst(envsToProcess)) {
         QByteArray prefix;
         // Get namespace
         {
@@ -78,7 +78,7 @@ void Generator::generateCode() {
             }
         }
 
-        for (const auto &item : qAsConst(env->classToGen)) {
+        for (const auto &item: qAsConst(env->classToGen)) {
             if (!item.gen) {
                 continue;
             }
@@ -101,7 +101,7 @@ void Generator::generateCode() {
                 }
 
                 auto enumName =
-                    NameUtil::combineNames(NameUtil::getQualifiedName(classDefEnv), res.name);
+                        NameUtil::combineNames(NameUtil::getQualifiedName(classDefEnv), res.name);
                 if (enums.contains(enumName)) {
                     NameUtil::error("Enumeration " + enumName + " has duplicated declarations!",
                                     item.filename, item.lineNum);
@@ -124,7 +124,7 @@ void Generator::generateCode() {
                 auto res2 = NameUtil::getScope(rootEnv, env, classToken, false);
                 if (res2.type == NameUtil::FindResult::ImportedClass) {
                     className =
-                        NameUtil::combineNames(NameUtil::getQualifiedName(res2.env), res2.name);
+                            NameUtil::combineNames(NameUtil::getQualifiedName(res2.env), res2.name);
                 }
             }
 
@@ -138,7 +138,7 @@ void Generator::generateCode() {
             // Class
             QByteArrayList superNameList;
 
-            for (const auto &super : qAsConst(classDef.superclassList)) {
+            for (const auto &super: qAsConst(classDef.superclassList)) {
                 // Collect super class
                 const auto &superToken = super.first;
                 const auto &info = super.second;
@@ -210,15 +210,10 @@ void Generator::generateEnums(const QByteArray &ns, const QByteArray &qualified,
     fprintf(fp, fmt, ns_str, type_str);
 
     // Convert to string
-    fprintf(fp, "    const QJsonValue &_data = _stream.data();\n"
-                "    if (!_data.isString()) {\n"
-                "        qAsDbg() << typeid(_var).name() << \": expect string, but get \" << "
-                "_data.type();\n"
-                "        _stream.setStatus(QAS::JsonStream::TypeNotMatch);\n"
+    fprintf(fp, "    QString _str;\n"
+                "    if (!QAS::JsonStreamUtils::parseAsString(_stream, typeid(_var).name(), &_str).good()) {\n"
                 "        return _stream;\n"
-                "    }\n"
-                "\n"
-                "    QString _str = _data.toString();\n");
+                "    }\n");
 
     // Define res
     fmt = "    %s _tmp{};\n";
@@ -226,7 +221,7 @@ void Generator::generateEnums(const QByteArray &ns, const QByteArray &qualified,
 
     // Start branches
     fprintf(fp, "    ");
-    for (const auto &item : def.values) {
+    for (const auto &item: def.values) {
         if (item.exclude) {
             continue;
         }
@@ -261,7 +256,7 @@ void Generator::generateEnums(const QByteArray &ns, const QByteArray &qualified,
                 "    switch (_var) {\n");
 
     // Start switch
-    for (const auto &item : def.values) {
+    for (const auto &item: def.values) {
         if (item.exclude) {
             continue;
         }
@@ -303,24 +298,19 @@ void Generator::generateClass(const QByteArray &ns, const QByteArray &qualified,
     fprintf(fp, fmt, ns_str, type_str);
 
     // Convert to object
-    fprintf(fp, "    const QJsonValue &_data = _stream.data();\n"
-                "    if (!_data.isObject()) {\n"
-                "        qAsDbg() << typeid(_var).name() << \": expect object, but get \" << "
-                "_data.type();\n"
-                "        _stream.setStatus(QAS::JsonStream::TypeNotMatch);\n"
+    fprintf(fp, "    QJsonObject _obj;\n"
+                "    if (!QAS::JsonStreamUtils::parseAsObject(_stream, typeid(_var).name(), &_obj).good()) {\n"
                 "        return _stream;\n"
-                "    }\n"
-                "\n");
+                "    }");
 
     // Define res
-    fmt = "    QJsonObject _obj = _data.toObject();\n"
-          "    %s _tmpVar{};\n"
+    fmt = "    %s _tmpVar{};\n"
           "\n"
           "    QAS::JsonStream _tmpStream;\n";
     fprintf(fp, fmt, type_str);
 
     // Super classes
-    for (const auto &super : supers) {
+    for (const auto &super: supers) {
         const char *name_str = super.data();
         fmt = "    _stream >> *reinterpret_cast<%s *>(&_tmpVar);\n"
               "    if (!_stream.good()) {\n"
@@ -330,7 +320,7 @@ void Generator::generateClass(const QByteArray &ns, const QByteArray &qualified,
     }
 
     // Start branches
-    for (const auto &item : def.memberVars) {
+    for (const auto &item: def.memberVars) {
         if (item.access == FunctionDef::Public) {
             if (item.exclude)
                 continue;
@@ -340,12 +330,11 @@ void Generator::generateClass(const QByteArray &ns, const QByteArray &qualified,
         }
         QByteArray attr = item.attr.isEmpty() ? item.name : item.attr;
         const char *name_str = item.name.data();
-        fmt = "    if (!(_tmpStream = QAS::JsonStreamUtils::parseObjectMember(_obj, \"%s\", "
-              "\"%s\", typeid(_tmpVar).name(), _tmpVar.%s)).good()) {\n"
+        fmt = "    if (!(_tmpStream = QAS::JsonStreamUtils::parseObjectMember(_obj, \"%s\", typeid(_tmpVar).name(), &_tmpVar.%s)).good()) {\n"
               "        _stream.setStatus(_tmpStream.status());\n"
               "        return _stream;\n"
               "    }\n";
-        fprintf(fp, fmt, attr.data(), name_str, name_str);
+        fprintf(fp, fmt, attr.data(), name_str);
     }
 
     // Last and end
@@ -367,20 +356,20 @@ void Generator::generateClass(const QByteArray &ns, const QByteArray &qualified,
                 "    QJsonObject _obj;\n");
 
     // Super classes
-    for (const auto &super : supers) {
+    for (const auto &super: supers) {
         fmt =
-            "    {\n"
-            "        QJsonObject _tmpObj = qAsClassToJson(*reinterpret_cast<const %s *>(&_var));\n"
-            "        for (auto it = _tmpObj.begin(); it != _tmpObj.end(); ++it) {\n"
-            "            _obj.insert(it.key(), it.value());\n"
-            "        }\n"
-            "    }\n";
+                "    {\n"
+                "        QJsonObject _tmpObj = qAsClassToJson(*reinterpret_cast<const %s *>(&_var));\n"
+                "        for (auto it = _tmpObj.begin(); it != _tmpObj.end(); ++it) {\n"
+                "            _obj.insert(it.key(), it.value());\n"
+                "        }\n"
+                "    }\n";
         const char *name_str = super.data();
         fprintf(fp, fmt, name_str);
     }
 
     // Start switch
-    for (const auto &item : def.memberVars) {
+    for (const auto &item: def.memberVars) {
         if (item.access == FunctionDef::Public) {
             if (item.exclude)
                 continue;

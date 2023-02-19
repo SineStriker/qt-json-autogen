@@ -11,14 +11,11 @@ enum Gender {
 QAS_JSON_NS_IMPL(Gender);
 
 inline QAS::JsonStream &operator>>(QAS::JsonStream &_stream, Gender &_var) {
-    const QJsonValue &_data = _stream.data();
-    if (!_data.isString()) {
-        qAsDbg() << typeid(_var).name() << ": expect string, but get " << _data.type();
-        _stream.setStatus(QAS::JsonStream::TypeNotMatch);
+    QString _str;
+    if (!QAS::JsonStreamUtils::parseAsString(_stream, typeid(_var).name(), &_str).good()) {
         return _stream;
     }
 
-    QString _str = _data.toString();
     Gender _tmp{};
     if (_str == "Male") {
         _tmp = Male;
@@ -58,23 +55,20 @@ struct Rectangle {
 QAS_JSON_NS_IMPL(Rectangle)
 
 inline QAS::JsonStream &operator>>(QAS::JsonStream &_stream, Rectangle &_var) {
-    const QJsonValue &_data = _stream.data();
-    if (!_data.isObject()) {
-        qAsDbg() << typeid(_var).name() << ": expect object, but get " << _data.type();
-        _stream.setStatus(QAS::JsonStream::TypeNotMatch);
+    QJsonObject _obj;
+    if (!QAS::JsonStreamUtils::parseAsObject(_stream, typeid(_var).name(), &_obj).good()) {
         return _stream;
     }
 
-    QJsonObject _obj = _data.toObject();
     Rectangle _tmpVar{};
     QAS::JsonStream _tmpStream;
-    if (!(_tmpStream = QAS::JsonStreamUtils::parseObjectMember(_obj, "a", "a", typeid(_tmpVar).name(),
-                                                               _tmpVar.a)).good()) {
+    if (!(_tmpStream = QAS::JsonStreamUtils::parseObjectMember(_obj, "a", typeid(_tmpVar).name(),
+                                                               &_tmpVar.a)).good()) {
         _stream.setStatus(_tmpStream.status());
         return _stream;
     }
-    if (!(_tmpStream = QAS::JsonStreamUtils::parseObjectMember(_obj, "b", "b", typeid(_tmpVar).name(),
-                                                               _tmpVar.b)).good()) {
+    if (!(_tmpStream = QAS::JsonStreamUtils::parseObjectMember(_obj, "b", typeid(_tmpVar).name(),
+                                                               &_tmpVar.b)).good()) {
         _stream.setStatus(_tmpStream.status());
         return _stream;
     }

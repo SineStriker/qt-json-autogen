@@ -1,19 +1,15 @@
 #include "QDspxParam.h"
 
 QAS::JsonStream &QDspx::operator>>(QAS::JsonStream &_stream, QDspx::ParamCurveRef &_var) {
-    const QJsonValue &_data = _stream.data();
-    if (!_data.isObject()) {
-        qAsDbg() << typeid(_var).name() << ": expect object, but get " << _data.type();
-        _stream.setStatus(QAS::JsonStream::TypeNotMatch);
+    QJsonObject _obj;
+    if (!QAS::JsonStreamUtils::parseAsObject(_stream, typeid(_var).name(), &_obj).good()) {
         return _stream;
     }
 
-    QJsonObject _obj = _data.toObject();
     QDspx::ParamCurve _tmpVar{};
-
     QAS::JsonStream _tmpStream;
-    if (!(_tmpStream = QAS::JsonStreamUtils::parseObjectMember(_obj, "type", "type", typeid(_tmpVar).name(),
-                                                               _tmpVar.type)).good()) {
+    if (!(_tmpStream = QAS::JsonStreamUtils::parseObjectMember(_obj, "type", typeid(_tmpVar).name(),
+                                                               &_tmpVar.type)).good()) {
         _stream.setStatus(_tmpStream.status());
         return _stream;
     }
