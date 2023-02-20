@@ -21,7 +21,6 @@
 
 #include <QString>
 #include <QTypeInfo>
-#include <vcruntime_typeinfo.h>
 
 // ----------------------------------
 // Utils Macros
