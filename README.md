@@ -184,6 +184,18 @@ int main() {
             + Use macro defined in `qas_json_types.h` to register your own container
         3. A serializable enumeration
 + Otherwise you may need to use `QAS_JSON_IMPL` or `QAS_JSON_NS_IMPL` to declare the functions(2 `QAS::JsonStream`'s stream operators to be overloaded) and implement them yourself.
+
++ The serializable class should have a parameterless constructor.
+
++ Initializing member variables in class definitions is not recommended, you should do it in constructor.
+    ```c++
+    // Not recommended
+    struct Foo {
+        int a = 1;
+        char b{};
+    };
+    ```
+
 + So we can conclude that constant, reference, pointer members may need to be excluded.
 + Some useful util functions are provided in `qjsonstream.h`.
 

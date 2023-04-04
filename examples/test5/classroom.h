@@ -16,7 +16,7 @@ public:
 
         QString name;
         Gender gender;
-        int age;
+        int age{};
     };
     QAS_JSON(Student);
 

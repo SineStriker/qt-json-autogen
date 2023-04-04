@@ -52,6 +52,7 @@ public:
         bool isFrameworkPath;
     };
     QList<IncludePath> includes;
+    QByteArrayList currentIncludeFiles;
 
     std::stack<QByteArray, QByteArrayList> currentFilenames;
 

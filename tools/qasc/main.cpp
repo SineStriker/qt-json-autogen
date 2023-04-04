@@ -560,6 +560,8 @@ int runMoc(int argc, char **argv) {
         }
     }
     moc.symbols += pp.preprocessed(moc.filename, &in);
+    moc.currentIncludeFiles = pp.currentIncludeFiles;
+    pp.currentIncludeFiles.clear();
 
     if (!pp.preprocessOnly) {
         // 2. parse

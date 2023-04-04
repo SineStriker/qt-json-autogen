@@ -117,11 +117,24 @@ function(qas_create_qasc_command infile outfile qasc_flags qasc_options qasc_tar
     endif()
 
     set(_qasc_extra_parameters_file @${_qasc_parameters_file})
+
+    # Add Qt Core to PATH
+    get_target_property(_loc Qt${QT_VERSION_MAJOR}::Core IMPORTED_LOCATION_RELEASE)
+    get_filename_component(_dir ${_loc} DIRECTORY)
+
+    if(WIN32)
+        set(_pre_cmd COMMAND set "Path=\%Path\%\;${_dir}\;")
+    else()
+        set(_pre_cmd ENV LD_LIBRARY_PATH=${_dir})
+    endif()
+
     add_custom_command(OUTPUT ${outfile}
+        ${_pre_cmd}
         COMMAND ${QASTOOL_QASC_EXECUTABLE} ${_qasc_extra_parameters_file}
         DEPENDS ${infile} ${qasc_depends}
         ${_qasc_working_dir}
-        VERBATIM)
+        VERBATIM
+    )
 endfunction()
 
 function(qas_generate_moc infile outfile)

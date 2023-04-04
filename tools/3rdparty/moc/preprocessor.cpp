@@ -1077,6 +1077,10 @@ void Preprocessor::preprocess(const QByteArray &filename, Symbols &preprocessed)
                 continue;
             Preprocessor::preprocessedIncludes.insert(include);
 
+            if (currentFilenames.size()<=1){
+                currentIncludeFiles.append(include);
+            }
+
             QFile file(QString::fromLocal8Bit(include.constData()));
             if (!file.open(QFile::ReadOnly))
                 continue;
