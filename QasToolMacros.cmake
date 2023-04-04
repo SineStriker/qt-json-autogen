@@ -123,14 +123,18 @@ function(qas_create_qasc_command infile outfile qasc_flags qasc_options qasc_tar
     get_filename_component(_dir ${_loc} DIRECTORY)
 
     if(WIN32)
-        set(_pre_cmd COMMAND set "Path=\%Path\%\;${_dir}\;")
+        set(_cmd
+            COMMAND set "Path=\%Path\%\;${_dir}\;"
+            COMMAND ${QASTOOL_QASC_EXECUTABLE} ${_qasc_extra_parameters_file}
+        )
     else()
-        set(_pre_cmd ENV LD_LIBRARY_PATH=${_dir})
+        set(_cmd
+            COMMAND ${CMAKE_COMMAND} -E env "LD_LIBRARY_PATH=${_dir}" -- ${QASTOOL_QASC_EXECUTABLE} ${_qasc_extra_parameters_file}
+        )
     endif()
 
     add_custom_command(OUTPUT ${outfile}
-        ${_pre_cmd}
-        COMMAND ${QASTOOL_QASC_EXECUTABLE} ${_qasc_extra_parameters_file}
+        ${_cmd}
         DEPENDS ${infile} ${qasc_depends}
         ${_qasc_working_dir}
         VERBATIM

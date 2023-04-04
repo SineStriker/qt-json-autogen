@@ -11,7 +11,7 @@ if (QAS_ROOT_PROJECT)
     set(QASTOOL_QASC_EXECUTABLE "$<TARGET_FILE:qasc>")
     set(QASTOOL_INCLUDE_DIRS "${CMAKE_CURRENT_SOURCE_DIR}/../include")
 else ()
-    find_package(qastool REQUIRED)
+    find_package(QasTool REQUIRED)
 endif ()
 
 include_directories(${QASTOOL_INCLUDE_DIRS})
