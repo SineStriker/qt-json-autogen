@@ -124,7 +124,7 @@ function(qas_create_qasc_command infile outfile qasc_flags qasc_options qasc_tar
 
     if(WIN32)
         set(_cmd
-            COMMAND set "Path=\%Path\%\;${_dir}\;"
+            COMMAND set "Path=${_dir}\;%Path%\;"
             COMMAND ${QASTOOL_QASC_EXECUTABLE} ${_qasc_extra_parameters_file}
         )
     else()
