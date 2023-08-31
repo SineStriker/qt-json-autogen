@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.17)
 
-project(qastool VERSION 0.0.2.3)
+project(qastool VERSION 0.0.2.4)
 
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
@@ -10,6 +10,7 @@ include(CMakePackageConfigHelpers)
 # ----------------------------------
 option(QAS_BUILD_EXAMPLES "Build examples" ON)
 option(QAS_BUILD_MOC_EXE "Build Qt moc executable" ON)
+option(QAS_VCPKG_TOOLS_HINT "Install executables to tools directory" OFF)
 
 # ----------------------------------
 # Project Configuration
@@ -44,14 +45,18 @@ if(QAS_BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
 
-
 # ----------------------------------
 # Install
 # ----------------------------------
 if(NOT QAS_SKIP_INSTALL)
     # Add install target
     set(_install_dir ${CMAKE_INSTALL_LIBDIR}/cmake/${QAS_INSTALL_NAME_LOWER})
-    set(_tools_dir ${CMAKE_INSTALL_PREFIX}/tools/${QAS_INSTALL_NAME_LOWER})
+
+    if(QAS_VCPKG_TOOLS_HINT)
+        set(_tools_dir tools/${QAS_INSTALL_NAME_LOWER})
+    else()
+        set(_tools_dir ${CMAKE_INSTALL_BINDIR})
+    endif()
 
     # Add version file
     write_basic_package_version_file(

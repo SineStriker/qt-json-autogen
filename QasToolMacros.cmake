@@ -127,6 +127,10 @@ function(qas_create_qasc_command infile outfile qasc_flags qasc_options qasc_tar
             COMMAND set "Path=${_dir}\;%Path%\;"
             COMMAND ${QASTOOL_QASC_EXECUTABLE} ${_qasc_extra_parameters_file}
         )
+    elseif(APPLE)
+        set(_cmd
+            COMMAND ${CMAKE_COMMAND} -E env "DYLD_LIBRARY_PATH=${_dir}" -- ${QASTOOL_QASC_EXECUTABLE} ${_qasc_extra_parameters_file}
+        )
     else()
         set(_cmd
             COMMAND ${CMAKE_COMMAND} -E env "LD_LIBRARY_PATH=${_dir}" -- ${QASTOOL_QASC_EXECUTABLE} ${_qasc_extra_parameters_file}
