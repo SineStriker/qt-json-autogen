@@ -270,7 +270,8 @@ Type Moc::parseType() {
 QByteArray Moc::parseNamespace() {
     QByteArray ns;
     bool tmp;
-    while ((ns += (tmp = test(SCOPE)) ? "::" : "", tmp) || (ns += (tmp = test(IDENTIFIER)) ? lexem() : "", tmp)) {
+    while ((ns += (tmp = test(SCOPE)) ? QByteArrayLiteral("::") : QByteArrayLiteral(""), tmp) ||
+           (ns += (tmp = test(IDENTIFIER)) ? lexem() : QByteArrayLiteral(""), tmp)) {
     }
     return ns;
 }
@@ -713,7 +714,8 @@ void Moc::parseEnv(Environment *env) {
                 bool tmp;
                 QByteArray name;
                 int rewind = index;
-                if ((name = (tmp = test(IDENTIFIER)) ? lexem() : "", tmp) && test(EQ) && !test(TYPENAME)) {
+                if ((name = (tmp = test(IDENTIFIER)) ? lexem() : QByteArrayLiteral(""), tmp) && test(EQ) &&
+                    !test(TYPENAME)) {
                     // using string = std::string;
                     QByteArray className = parseType().name;
                     if (className.isEmpty()) {

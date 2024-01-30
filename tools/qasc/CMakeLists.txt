@@ -11,6 +11,7 @@ add_qt_private_inc(_qt_private_incs Core)
 # ----------------------------------
 add_files(_src CURRENT_RECURSE PATTERNS *.h *.c *.cpp)
 add_executable(${PROJECT_NAME} ${_src})
+# add_library(${QAS_INSTALL_NAME_LOWER}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 
 # ----------------------------------
 # Target...

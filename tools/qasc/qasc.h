@@ -45,8 +45,7 @@ QT_BEGIN_NAMESPACE
 struct Type {
     enum ReferenceType { NoReference, Reference, RValueReference, Pointer };
 
-    inline Type()
-        : isVolatile(false), isScoped(false), firstToken(NOTOKEN), referenceType(NoReference) {
+    inline Type() : isVolatile(false), isScoped(false), firstToken(NOTOKEN), referenceType(NoReference) {
     }
     inline explicit Type(const QByteArray &_name)
         : name(_name), rawName(name), isVolatile(false), isScoped(false), firstToken(NOTOKEN),
@@ -186,7 +185,7 @@ struct Environment {
     QSharedPointer<ClassDef> cl;
 
     inline QByteArray name() const {
-        return ns.isNull() ? (cl.isNull() ? "@root" : cl->classname) : ns->classname;
+        return ns.isNull() ? (cl.isNull() ? QByteArrayLiteral("@root") : cl->classname) : ns->classname;
     }
 
     QSet<QByteArray> usedNamespaces;
@@ -204,12 +203,10 @@ struct Environment {
     Environment() : isRoot(true), isNamespace(false), parent(nullptr) {
     }
 
-    Environment(NamespaceDef *ns, Environment *parent)
-        : isRoot(false), isNamespace(true), ns(ns), parent(parent) {
+    Environment(NamespaceDef *ns, Environment *parent) : isRoot(false), isNamespace(true), ns(ns), parent(parent) {
     }
 
-    Environment(ClassDef *cl, Environment *parent)
-        : isRoot(false), isNamespace(false), cl(cl), parent(parent) {
+    Environment(ClassDef *cl, Environment *parent) : isRoot(false), isNamespace(false), cl(cl), parent(parent) {
     }
 };
 
@@ -246,8 +243,7 @@ public:
     }
 
     inline bool inEnv(const Environment *env) const {
-        return env->isRoot ||
-               (env->isNamespace ? inNamespace(env->ns.data()) : inClass(env->cl.data()));
+        return env->isRoot || (env->isNamespace ? inNamespace(env->ns.data()) : inClass(env->cl.data()));
     }
 
     Type parseType();

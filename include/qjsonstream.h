@@ -662,6 +662,7 @@ JsonStream &operator<<(JsonStream &stream, const std::set<T> &list) {
     return QAS::JsonStreamContainers::readList(stream, list);
 }
 
+#if QT_VERSION < QT_VERSION_CHECK(6, 0, 0)
 // QList
 template <class T>
 JsonStream &operator>>(JsonStream &stream, QList<T> &list) {
@@ -672,6 +673,7 @@ template <class T>
 JsonStream &operator<<(JsonStream &stream, const QList<T> &list) {
     return QAS::JsonStreamContainers::readList(stream, list);
 }
+#endif
 
 // QSet
 template <class T>
@@ -683,8 +685,6 @@ template <class T>
 JsonStream &operator<<(JsonStream &stream, const QSet<T> &list) {
     return QAS::JsonStreamContainers::readList(stream, list);
 }
-
-#if QT_MAJOR_VERSION <= 5
 
 // QVector
 template <class T>
@@ -705,8 +705,6 @@ inline JsonStream &operator>>(JsonStream &stream, QStringList &list) {
 inline JsonStream &operator<<(JsonStream &stream, const QStringList &list) {
     return QAS::JsonStreamContainers::readList(stream, list);
 }
-
-#endif
 
 // STL map operators
 struct STLMapOps {
