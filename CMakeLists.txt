@@ -30,6 +30,8 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 
 if(WIN32)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /utf-8")
+else()
+    set(CMAKE_INSTALL_RPATH_USE_LINK_PATH ON)
 endif()
 
 # ----------------------------------

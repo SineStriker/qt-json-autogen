@@ -118,22 +118,17 @@ function(qas_create_qasc_command infile outfile qasc_flags qasc_options qasc_tar
 
     set(_qasc_extra_parameters_file @${_qasc_parameters_file})
 
-    # Add Qt Core to PATH
-    get_target_property(_loc Qt${QT_VERSION_MAJOR}::Core IMPORTED_LOCATION_RELEASE)
-    get_filename_component(_dir ${_loc} DIRECTORY)
-
     if(WIN32)
+        # Add Qt Core to PATH
+        get_target_property(_loc Qt${QT_VERSION_MAJOR}::Core IMPORTED_LOCATION_RELEASE)
+        get_filename_component(_dir ${_loc} DIRECTORY)
         set(_cmd
             COMMAND set "Path=${_dir}\;%Path%\;"
             COMMAND ${QASTOOL_QASC_EXECUTABLE} ${_qasc_extra_parameters_file}
         )
-    elseif(APPLE)
-        set(_cmd
-            COMMAND ${CMAKE_COMMAND} -E env "DYLD_LIBRARY_PATH=${_dir}" -- ${QASTOOL_QASC_EXECUTABLE} ${_qasc_extra_parameters_file}
-        )
     else()
         set(_cmd
-            COMMAND ${CMAKE_COMMAND} -E env "LD_LIBRARY_PATH=${_dir}" -- ${QASTOOL_QASC_EXECUTABLE} ${_qasc_extra_parameters_file}
+            COMMAND ${QASTOOL_QASC_EXECUTABLE} ${_qasc_extra_parameters_file}
         )
     endif()
 
