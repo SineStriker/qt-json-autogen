@@ -17,6 +17,14 @@ add_executable(${PROJECT_NAME} ${_src})
 # Target...
 # ----------------------------------
 target_compile_definitions(${PROJECT_NAME} PRIVATE APP_VERSION="${PROJECT_VERSION}")
+
+if(QT_VERSION_MAJOR EQUAL 6)
+    if(Qt6_VERSION VERSION_GREATER_EQUAL 6.10.0)
+        find_package(Qt6 COMPONENTS CorePrivate REQUIRED)
+        target_link_libraries(${PROJECT_NAME} PRIVATE Qt6::CorePrivate)
+    endif()
+endif()
+
 target_link_libraries(${PROJECT_NAME} PRIVATE ${_qt_libs} mocparser)
 target_include_directories(${PROJECT_NAME} PRIVATE ${CMAKE_CURRENT_SOURCE_DIR} ${_qt_private_incs})
 

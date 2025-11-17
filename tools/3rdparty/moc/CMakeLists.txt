@@ -17,8 +17,19 @@ if(MSVC)
     )
 endif()
 
+if(QT_VERSION_MAJOR EQUAL 6)
+    if(Qt6_VERSION VERSION_GREATER_EQUAL 6.10.0)
+        find_package(Qt6 COMPONENTS CorePrivate REQUIRED)
+        set(QT_CORE_PRIVATE_INCLUDES ${Qt6CorePrivate_INCLUDE_DIRS})
+    else()
+        set(QT_CORE_PRIVATE_INCLUDES ${Qt6Core_PRIVATE_INCLUDE_DIRS})
+    endif()
+elseif(QT_VERSION_MAJOR EQUAL 5)
+    set(QT_CORE_PRIVATE_INCLUDES ${Qt5Core_PRIVATE_INCLUDE_DIRS})
+endif()
+
 include_directories(
-    "${Qt${QT_VERSION_MAJOR}Core_PRIVATE_INCLUDE_DIRS}"
+    ${QT_CORE_PRIVATE_INCLUDES}
     ${CMAKE_CURRENT_SOURCE_DIR}/../tinycbor/src
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
