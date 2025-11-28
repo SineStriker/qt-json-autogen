@@ -121,6 +121,41 @@ struct FunctionDef {
 };
 Q_DECLARE_TYPEINFO(FunctionDef, Q_MOVABLE_TYPE);
 
+// Constraint types enumeration for JSON validation
+enum class ConstraintType {
+    MINIMUM,                // x >= value
+    MAXIMUM,               // x <= value  
+    EXCLUSIVE_MINIMUM,     // x > value
+    EXCLUSIVE_MAXIMUM,     // x < value
+    CONST,                 // x === value
+    ENUM,                  // x in [value1, value2, ...]
+    MIN_LENGTH,            // x.length >= value
+    MAX_LENGTH,            // x.length <= value
+    PATTERN                // x matches regex pattern
+};
+
+// Single constraint definition
+struct Constraint {
+    ConstraintType type;
+    QJsonValue value;      // Constraint value stored as JSON for type flexibility
+    
+    // Convert constraint type to string for error reporting
+    static QByteArray typeToString(ConstraintType type);
+    
+    // Validate if the given value satisfies this constraint
+    bool validate(const QJsonValue& input, QString* errorMsg = nullptr) const;
+};
+Q_DECLARE_TYPEINFO(Constraint, Q_MOVABLE_TYPE);
+
+// Group of constraints (AND relationship within group)
+struct ConstraintGroup {
+    QVector<Constraint> constraints;
+    
+    // Validate if input satisfies ALL constraints in this group
+    bool validate(const QJsonValue& input, QString* errorMsg = nullptr) const;
+};
+Q_DECLARE_TYPEINFO(ConstraintGroup, Q_MOVABLE_TYPE);
+
 struct JsonAttributes {
     FunctionDef::Access access = FunctionDef::Access::Public;
     int lineNum = 0;
@@ -130,6 +165,12 @@ struct JsonAttributes {
     QByteArray attr;
     bool exclude = false;
     bool include = false;
+    
+    // Constraint groups (OR relationship between groups)
+    QVector<ConstraintGroup> constraintGroups;
+    
+    // Check if any constraint group is satisfied
+    bool validateConstraints(const QJsonValue& input, QString* errorMsg = nullptr) const;
 };
 struct MemberVariableDef : ArgumentDef, JsonAttributes {
     FunctionDef::Access access = FunctionDef::Public;
@@ -258,6 +299,12 @@ public:
     void parseFunctionArguments(FunctionDef *def);
     bool parseMemberVariable(ArgumentDef *def);
     void parseDeclareType(QByteArray *name);
+    
+    // Parse constraint expressions from __qas_constraint__ annotation
+    bool parseConstraints(ConstraintGroup *group);
+    ConstraintType parseConstraintType(const QByteArray &typeStr);
+    bool parseConstraintValue(ConstraintType type, QJsonValue *value);
+    bool parseJsonValue(QJsonValue *value);
 
     QByteArray lexemUntil(Token);
     bool until(Token);

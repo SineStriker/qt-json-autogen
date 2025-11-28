@@ -22,6 +22,7 @@
 #include <QJsonArray>
 #include <QJsonObject>
 #include <QJsonValue>
+#include <QRegularExpression>
 
 #include <QHash>
 #include <QList>
@@ -46,8 +47,9 @@ public:
         KeyNotFound = 2,
         TypeNotMatch = 4,
         UnlistedValue = 8,
-        Success = Ok | KeyNotFound | UnlistedValue,
-        Failed = TypeNotMatch,
+        ConstraintViolation = 16,  // Value violates constraint rules
+        Success = Ok,
+        Failed = KeyNotFound | UnlistedValue | TypeNotMatch | ConstraintViolation,
     };
 
     JsonStream() : q_status(Ok){};
@@ -858,5 +860,204 @@ template <class T>
 bool qAsJsonTryGetEnum(const QString &str, T *out) {
     return QAS::JsonStream(str).convert(out);
 }
+
+// ----------------------------------
+// Constraint Validator
+// ----------------------------------
+
+QAS_BEGIN_NAMESPACE
+
+class ConstraintValidator {
+public:
+    // Validate individual constraint types
+    static inline bool validateMinimum(const QJsonValue& input, const QJsonValue& constraint, QString* errorMsg = nullptr) {
+        if (!isNumeric(input) || !isNumeric(constraint)) {
+            if (errorMsg) *errorMsg = "MINIMUM constraint requires numeric values";
+            return false;
+        }
+        
+        double inputVal = toDouble(input);
+        double constraintVal = toDouble(constraint);
+        bool valid = inputVal >= constraintVal;
+        
+        if (!valid && errorMsg) {
+            *errorMsg = QString("Value %1 is less than minimum %2").arg(inputVal).arg(constraintVal);
+        }
+        
+        return valid;
+    }
+    
+    static inline bool validateMaximum(const QJsonValue& input, const QJsonValue& constraint, QString* errorMsg = nullptr) {
+        if (!isNumeric(input) || !isNumeric(constraint)) {
+            if (errorMsg) *errorMsg = "MAXIMUM constraint requires numeric values";
+            return false;
+        }
+        
+        double inputVal = toDouble(input);
+        double constraintVal = toDouble(constraint);
+        bool valid = inputVal <= constraintVal;
+        
+        if (!valid && errorMsg) {
+            *errorMsg = QString("Value %1 is greater than maximum %2").arg(inputVal).arg(constraintVal);
+        }
+        
+        return valid;
+    }
+    
+    static inline bool validateExclusiveMinimum(const QJsonValue& input, const QJsonValue& constraint, QString* errorMsg = nullptr) {
+        if (!isNumeric(input) || !isNumeric(constraint)) {
+            if (errorMsg) *errorMsg = "EXCLUSIVE_MINIMUM constraint requires numeric values";
+            return false;
+        }
+        
+        double inputVal = toDouble(input);
+        double constraintVal = toDouble(constraint);
+        bool valid = inputVal > constraintVal;
+        
+        if (!valid && errorMsg) {
+            *errorMsg = QString("Value %1 is not greater than exclusive minimum %2").arg(inputVal).arg(constraintVal);
+        }
+        
+        return valid;
+    }
+    
+    static inline bool validateExclusiveMaximum(const QJsonValue& input, const QJsonValue& constraint, QString* errorMsg = nullptr) {
+        if (!isNumeric(input) || !isNumeric(constraint)) {
+            if (errorMsg) *errorMsg = "EXCLUSIVE_MAXIMUM constraint requires numeric values";
+            return false;
+        }
+        
+        double inputVal = toDouble(input);
+        double constraintVal = toDouble(constraint);
+        bool valid = inputVal < constraintVal;
+        
+        if (!valid && errorMsg) {
+            *errorMsg = QString("Value %1 is not less than exclusive maximum %2").arg(inputVal).arg(constraintVal);
+        }
+        
+        return valid;
+    }
+    
+    static inline bool validateConst(const QJsonValue& input, const QJsonValue& constraint, QString* errorMsg = nullptr) {
+        bool valid = (input == constraint);
+        
+        if (!valid && errorMsg) {
+            *errorMsg = QString("Value does not match constant constraint");
+        }
+        
+        return valid;
+    }
+    
+    static inline bool validateEnum(const QJsonValue& input, const QJsonValue& constraint, QString* errorMsg = nullptr) {
+        if (!constraint.isArray()) {
+            if (errorMsg) *errorMsg = "ENUM constraint value must be an array";
+            return false;
+        }
+        
+        QJsonArray enumArray = constraint.toArray();
+        
+        for (const auto& enumValue : enumArray) {
+            if (input == enumValue) {
+                return true; // Found matching value
+            }
+        }
+        
+        // No matching value found
+        if (errorMsg) {
+            *errorMsg = QString("Value is not in the allowed enumeration");
+        }
+        
+        return false;
+    }
+    
+    static inline bool validateMinLength(const QJsonValue& input, const QJsonValue& constraint, QString* errorMsg = nullptr) {
+        if (!input.isString()) {
+            if (errorMsg) *errorMsg = "MIN_LENGTH constraint requires string input";
+            return false;
+        }
+        
+        if (!constraint.isDouble()) {
+            if (errorMsg) *errorMsg = "MIN_LENGTH constraint value must be a number";
+            return false;
+        }
+        
+        QString inputStr = toString(input);
+        int minLength = constraint.toInt();
+        bool valid = inputStr.length() >= minLength;
+        
+        if (!valid && errorMsg) {
+            *errorMsg = QString("String length %1 is less than minimum %2").arg(inputStr.length()).arg(minLength);
+        }
+        
+        return valid;
+    }
+    
+    static inline bool validateMaxLength(const QJsonValue& input, const QJsonValue& constraint, QString* errorMsg = nullptr) {
+        if (!input.isString()) {
+            if (errorMsg) *errorMsg = "MAX_LENGTH constraint requires string input";
+            return false;
+        }
+        
+        if (!constraint.isDouble()) {
+            if (errorMsg) *errorMsg = "MAX_LENGTH constraint value must be a number";
+            return false;
+        }
+        
+        QString inputStr = toString(input);
+        int maxLength = constraint.toInt();
+        bool valid = inputStr.length() <= maxLength;
+        
+        if (!valid && errorMsg) {
+            *errorMsg = QString("String length %1 is greater than maximum %2").arg(inputStr.length()).arg(maxLength);
+        }
+        
+        return valid;
+    }
+    
+    static inline bool validatePattern(const QJsonValue& input, const QJsonValue& constraint, QString* errorMsg = nullptr) {
+        if (!input.isString()) {
+            if (errorMsg) *errorMsg = "PATTERN constraint requires string input";
+            return false;
+        }
+        
+        if (!constraint.isString()) {
+            if (errorMsg) *errorMsg = "PATTERN constraint value must be a string";
+            return false;
+        }
+        
+        QString inputStr = toString(input);
+        QString pattern = toString(constraint);
+        
+        QRegularExpression regex(pattern);
+        if (!regex.isValid()) {
+            if (errorMsg) *errorMsg = QString("Invalid regular expression pattern: %1").arg(pattern);
+            return false;
+        }
+        
+        bool valid = regex.match(inputStr).hasMatch();
+        
+        if (!valid && errorMsg) {
+            *errorMsg = QString("String does not match pattern: %1").arg(pattern);
+        }
+        
+        return valid;
+    }
+    
+private:
+    // Helper functions for type checking and conversion
+    static inline bool isNumeric(const QJsonValue& value) {
+        return value.isDouble() || value.isNull() == false;
+    }
+    
+    static inline double toDouble(const QJsonValue& value) {
+        return value.toDouble();
+    }
+    
+    static inline QString toString(const QJsonValue& value) {
+        return value.toString();
+    }
+};
+
+QAS_END_NAMESPACE
 
 #endif // QJSONSTREAM_H

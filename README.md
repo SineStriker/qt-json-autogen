@@ -199,6 +199,90 @@ int main() {
 + So we can conclude that constant, reference, pointer members may need to be excluded.
 + Some useful util functions are provided in `qjsonstream.h`.
 
+### Constraint Validation
+
+The `__qas_constraint__` feature allows you to define validation rules for JSON deserialization using a declarative syntax. Constraints are automatically validated during JSON to C++ object conversion.
+
+#### Usage Syntax
+```cpp
+__qas_constraint__(<constraint_type> <value> [<constraint_type> <value>...])
+```
+
++ Multiple constraints within the same `__qas_constraint__` declaration have an AND relationship.
++ Multiple `__qas_constraint__` declarations for the same field have an OR relationship.
+
+#### Supported Constraint Types
+
+**Range Constraints (Numeric Values)**
+- `MINIMUM <value>` - Value must be >= value
+- `MAXIMUM <value>` - Value must be <= value  
+- `EXCLUSIVE_MINIMUM <value>` - Value must be > value
+- `EXCLUSIVE_MAXIMUM <value>` - Value must be < value
+
+```cpp
+__qas_constraint__(MINIMUM 0 MAXIMUM 100)
+int score;
+```
+
+**Equality Constraints**
+- `CONST <json_value>` - Value must equal the specified constant
+- `ENUM [<json_array>]` - Value must be one of the specified values
+
+```cpp
+__qas_constraint__(CONST "1.0.0")
+QString version;
+
+__qas_constraint__(ENUM ["red", "green", "blue"])
+QString color;
+```
+
+**String Length Constraints**
+- `MIN_LENGTH <integer>` - String length must be >= value
+- `MAX_LENGTH <integer>` - String length must be <= value
+
+```cpp
+__qas_constraint__(MIN_LENGTH 3 MAX_LENGTH 20)
+QString username;
+```
+
+**Pattern Constraint**
+- `PATTERN "<regex_pattern>"` - String must match the regular expression
+
+```cpp
+__qas_constraint__(PATTERN "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$")
+QString email;
+```
+
+#### Error Handling
+
+When constraint validation fails during deserialization:
+- `JsonStream::ConstraintViolation` status is set
+- Deserialization stops immediately
+- The `Failed` mask includes `ConstraintViolation` for easy error checking
+
+#### Example
+
+```cpp
+class UserProfile {
+public:
+    __qas_constraint__(MIN_LENGTH 3 MAX_LENGTH 20)
+    QString username;
+    
+    __qas_constraint__(MINIMUM 13 MAXIMUM 120)
+    int age;
+    
+    __qas_constraint__(PATTERN "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$")
+    QString email;
+    
+    __qas_constraint__(ENUM ["admin", "user", "guest"])
+    QString role;
+};
+QAS_JSON_NS(UserProfile)
+
+// During deserialization, if any constraint is violated,
+// JsonStream::ConstraintViolation status will be set
+```
+
 ## Supported Types
 
 | C++ Type                                                                     | JSON Type    |

@@ -186,6 +186,7 @@ QT_BEGIN_NAMESPACE
     F(QAS_INCLUDE_TOKEN)                                                                      \
     F(QAS_JSON_TOKEN)                                                                      \
     F(QAS_JSON_NS_TOKEN)                                                                      \
+    F(QAS_CONSTRAINT_TOKEN)                                                                   \
     /* Add QAS macros end */                                                                       \
     F(SPECIAL_TREATMENT_MARK)                                                                      \
     F(MOC_INCLUDE_BEGIN)                                                                           \

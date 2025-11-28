@@ -19,6 +19,11 @@ private:
 
     void generateClass(const QByteArray &ns, const QByteArray &qualified,
                        const QByteArrayList &supers, const ClassDef &def);
+                       
+    // Generate constraint validation code
+    void generateConstraintValidation(const QByteArray &fieldName, 
+                                     const QVector<ConstraintGroup> &constraintGroups);
+    void generateSingleConstraintCheck(const Constraint &constraint);
 };
 
 #endif // GENERATOR_H

@@ -335,6 +335,11 @@ void Generator::generateClass(const QByteArray &ns, const QByteArray &qualified,
               "        return _stream;\n"
               "    }\n";
         fprintf(fp, fmt, attr.data(), name_str);
+        
+        // Generate constraint validation if constraints exist
+        if (!item.constraintGroups.isEmpty()) {
+            generateConstraintValidation(item.name, item.constraintGroups);
+        }
     }
 
     // Last and end
@@ -390,4 +395,127 @@ void Generator::generateClass(const QByteArray &ns, const QByteArray &qualified,
                 "}\n");
 
     fprintf(fp, "\n\n");
+}
+
+void Generator::generateConstraintValidation(const QByteArray &fieldName, 
+                                            const QVector<ConstraintGroup> &constraintGroups) {
+    if (constraintGroups.isEmpty()) {
+        return;
+    }
+    
+    const char *field_str = fieldName.data();
+    
+    fprintf(fp, "    // Validate constraints for field '%s'\n", field_str);
+    fprintf(fp, "    {\n");
+    fprintf(fp, "        bool _constraintSatisfied = false;\n");
+    fprintf(fp, "        QJsonValue _fieldValue = QAS::JsonStream::fromValue(_tmpVar.%s).data();\n", field_str);
+    
+    // Generate validation for each constraint group (OR relationship)
+    for (int groupIdx = 0; groupIdx < constraintGroups.size(); ++groupIdx) {
+        const auto &group = constraintGroups[groupIdx];
+        
+        if (groupIdx == 0) {
+            fprintf(fp, "        if (");
+        } else {
+            fprintf(fp, "        } else if (");
+        }
+        
+        // Generate validation for each constraint in the group (AND relationship)
+        for (int constraintIdx = 0; constraintIdx < group.constraints.size(); ++constraintIdx) {
+            const auto &constraint = group.constraints[constraintIdx];
+            
+            if (constraintIdx > 0) {
+                fprintf(fp, " && ");
+            }
+            
+            // Generate specific constraint validation based on type
+            generateSingleConstraintCheck(constraint);
+        }
+        
+        fprintf(fp, ") {\n");
+        fprintf(fp, "            _constraintSatisfied = true;\n");
+    }
+    
+    if (!constraintGroups.isEmpty()) {
+        fprintf(fp, "        }\n");
+    }
+    
+    fprintf(fp, "        if (!_constraintSatisfied) {\n");
+    fprintf(fp, "            _stream.setStatus(QAS::JsonStream::ConstraintViolation);\n");
+    fprintf(fp, "            return _stream;\n");
+    fprintf(fp, "        }\n");
+    fprintf(fp, "    }\n");
+}
+
+void Generator::generateSingleConstraintCheck(const Constraint &constraint) {
+    QJsonValue value = constraint.value;
+    
+    switch (constraint.type) {
+        case ConstraintType::MINIMUM:
+            fprintf(fp, "QAS::ConstraintValidator::validateMinimum(_fieldValue, QJsonValue(%g))", value.toDouble());
+            break;
+            
+        case ConstraintType::MAXIMUM:
+            fprintf(fp, "QAS::ConstraintValidator::validateMaximum(_fieldValue, QJsonValue(%g))", value.toDouble());
+            break;
+            
+        case ConstraintType::EXCLUSIVE_MINIMUM:
+            fprintf(fp, "QAS::ConstraintValidator::validateExclusiveMinimum(_fieldValue, QJsonValue(%g))", value.toDouble());
+            break;
+            
+        case ConstraintType::EXCLUSIVE_MAXIMUM:
+            fprintf(fp, "QAS::ConstraintValidator::validateExclusiveMaximum(_fieldValue, QJsonValue(%g))", value.toDouble());
+            break;
+            
+        case ConstraintType::CONST:
+            if (value.isString()) {
+                fprintf(fp, "QAS::ConstraintValidator::validateConst(_fieldValue, QJsonValue(QString(\"%s\")))", 
+                       value.toString().toUtf8().constData());
+            } else if (value.isDouble()) {
+                fprintf(fp, "QAS::ConstraintValidator::validateConst(_fieldValue, QJsonValue(%g))", value.toDouble());
+            } else if (value.isBool()) {
+                fprintf(fp, "QAS::ConstraintValidator::validateConst(_fieldValue, QJsonValue(%s))", 
+                       value.toBool() ? "true" : "false");
+            } else if (value.isNull()) {
+                fprintf(fp, "QAS::ConstraintValidator::validateConst(_fieldValue, QJsonValue(QJsonValue::Null))");
+            }
+            break;
+            
+        case ConstraintType::ENUM: {
+            fprintf(fp, "QAS::ConstraintValidator::validateEnum(_fieldValue, QJsonValue(QJsonArray({");
+            QJsonArray arr = value.toArray();
+            for (int i = 0; i < arr.size(); ++i) {
+                if (i > 0) fprintf(fp, ", ");
+                QJsonValue item = arr[i];
+                if (item.isString()) {
+                    fprintf(fp, "QString(\"%s\")", item.toString().toUtf8().constData());
+                } else if (item.isDouble()) {
+                    fprintf(fp, "%g", item.toDouble());
+                } else if (item.isBool()) {
+                    fprintf(fp, "%s", item.toBool() ? "true" : "false");
+                } else if (item.isNull()) {
+                    fprintf(fp, "QJsonValue(QJsonValue::Null)");
+                }
+            }
+            fprintf(fp, "})))");
+            break;
+        }
+        
+        case ConstraintType::MIN_LENGTH:
+            fprintf(fp, "QAS::ConstraintValidator::validateMinLength(_fieldValue, QJsonValue(%d))", value.toInt());
+            break;
+            
+        case ConstraintType::MAX_LENGTH:
+            fprintf(fp, "QAS::ConstraintValidator::validateMaxLength(_fieldValue, QJsonValue(%d))", value.toInt());
+            break;
+            
+        case ConstraintType::PATTERN:
+            fprintf(fp, "QAS::ConstraintValidator::validatePattern(_fieldValue, QJsonValue(QString(\"%s\")))", 
+                   value.toString().toUtf8().constData());
+            break;
+            
+        default:
+            fprintf(fp, "true /* unsupported constraint type */");
+            break;
+    }
 }

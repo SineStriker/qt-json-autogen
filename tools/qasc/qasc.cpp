@@ -356,6 +356,7 @@ bool Moc::parseEnum(EnumDef *def) {
             bool exclude = false;
             bool include = false;
             QByteArray attr;
+            ConstraintGroup constraintGroup;
 
             auto t = next();
             switch (t) {
@@ -375,6 +376,14 @@ bool Moc::parseEnum(EnumDef *def) {
                     include = true;
                     next(IDENTIFIER);
                     break;
+                    
+                case QAS_CONSTRAINT_TOKEN:
+                    if (!parseConstraints(&constraintGroup)) {
+                        error("Failed to parse constraint expression");
+                        return false;
+                    }
+                    next(IDENTIFIER);
+                    break;
 
                 case IDENTIFIER:
                     break;
@@ -389,6 +398,11 @@ bool Moc::parseEnum(EnumDef *def) {
             ja.attr = attr;
             ja.exclude = exclude;
             ja.include = include;
+            
+            // Add constraint group if it has constraints
+            if (!constraintGroup.constraints.isEmpty()) {
+                ja.constraintGroups.append(constraintGroup);
+            }
 
             def->values += ja;
         }
@@ -812,28 +826,53 @@ void Moc::parseEnv(Environment *env) {
                 bool exclude = false;
                 bool include = false;
                 QByteArray annotation;
+                QVector<ConstraintGroup> constraintGroups;
                 if (currentFilenames.size() <= 1) {
-                    switch (t) {
-                        case QAS_ATTR_TOKEN: {
-                            annotation = lexem();
-                            parseDeclareType(&attr);
-                            attr.replace("\"", "");
-                            next();
-                            break;
+                    auto tt = t;
+                    while (true) {
+                        switch (tt) {
+                            case QAS_ATTR_TOKEN: {
+                                annotation = lexem();
+                                parseDeclareType(&attr);
+                                attr.replace("\"", "");
+                                tt = lookup();
+                                next();
+                                break;
+                            }
+                            case QAS_EXCLUDE_TOKEN:
+                                annotation = lexem();
+                                exclude = true;
+                                include = false;
+                                tt = lookup();
+                                next();
+                                break;
+                            case QAS_INCLUDE_TOKEN:
+                                annotation = lexem();
+                                include = true;
+                                exclude = false;
+                                tt = lookup();
+                                next();
+                                break;
+                            case QAS_CONSTRAINT_TOKEN:
+                                annotation = lexem();
+                                {
+                                    ConstraintGroup constraintGroup;
+                                    if (!parseConstraints(&constraintGroup)) {
+                                        error(QByteArray("Failed to parse constraint expression in " + annotation).constData());
+                                        return;
+                                    }
+                                    if (!constraintGroup.constraints.isEmpty()) {
+                                        constraintGroups.append(constraintGroup);
+                                    }
+                                }
+                                tt = lookup();
+                                next();
+                                break;
+                            default:
+                                goto end_qas_loop;
                         }
-                        case QAS_EXCLUDE_TOKEN:
-                            annotation = lexem();
-                            exclude = true;
-                            next();
-                            break;
-                        case QAS_INCLUDE_TOKEN:
-                            annotation = lexem();
-                            include = true;
-                            next();
-                            break;
-                        default:
-                            break;
                     }
+                    end_qas_loop:;
                 }
 
                 bool parseAnnotated = false;
@@ -849,6 +888,9 @@ void Moc::parseEnv(Environment *env) {
                         arg.attr = attr;
                         arg.exclude = exclude;
                         arg.include = include;
+                        
+                        arg.constraintGroups = constraintGroups;
+                        
                         env->cl->memberVars += arg;
                         parseAnnotated = true;
                     } else {
@@ -1247,6 +1289,300 @@ QJsonObject EnumDef::toJson() const {
     }
 
     return def;
+}
+
+// Implementation of constraint parsing functions
+bool Moc::parseConstraints(ConstraintGroup *group) {
+    // Expect: __qas_constraint__(MINIMUM 10 MAXIMUM 20)
+    // Current position should be after QAS_CONSTRAINT_TOKEN
+    
+    if (!test(LPAREN)) {
+        error("Expected '(' after __qas_constraint__");
+        return false;
+    }
+    
+    // Parse constraint pairs within parentheses
+    while (!test(RPAREN)) {
+        if (lookup() == RPAREN) {
+            break; // Empty constraint list is allowed
+        }
+        
+        // Parse constraint type (e.g., MINIMUM, MAXIMUM, etc.)
+        if (!test(IDENTIFIER)) {
+            error("Expected constraint type identifier");
+            return false;
+        }
+        
+        QByteArray typeStr = lexem();
+        ConstraintType type = parseConstraintType(typeStr);
+        
+        if (type == static_cast<ConstraintType>(-1)) {
+            error(QByteArray("Unsupported constraint type: " + typeStr).constData());
+            return false;
+        }
+        
+        // Parse constraint value
+        QJsonValue value;
+        if (!parseConstraintValue(type, &value)) {
+            error(QByteArray("Failed to parse constraint value for " + typeStr).constData());
+            return false;
+        }
+        
+        // Create constraint and add to group
+        Constraint constraint;
+        constraint.type = type;
+        constraint.value = value;
+        group->constraints.append(constraint);
+    }
+    
+    return true;
+}
+
+ConstraintType Moc::parseConstraintType(const QByteArray &typeStr) {
+    // Map string to constraint type enum
+    if (typeStr == "MINIMUM") return ConstraintType::MINIMUM;
+    if (typeStr == "MAXIMUM") return ConstraintType::MAXIMUM;
+    if (typeStr == "EXCLUSIVE_MINIMUM") return ConstraintType::EXCLUSIVE_MINIMUM;
+    if (typeStr == "EXCLUSIVE_MAXIMUM") return ConstraintType::EXCLUSIVE_MAXIMUM;
+    if (typeStr == "CONST") return ConstraintType::CONST;
+    if (typeStr == "ENUM") return ConstraintType::ENUM;
+    if (typeStr == "MIN_LENGTH") return ConstraintType::MIN_LENGTH;
+    if (typeStr == "MAX_LENGTH") return ConstraintType::MAX_LENGTH;
+    if (typeStr == "PATTERN") return ConstraintType::PATTERN;
+    
+    return static_cast<ConstraintType>(-1); // Invalid type
+}
+
+bool Moc::parseConstraintValue(ConstraintType type, QJsonValue *value) {
+    switch (type) {
+        case ConstraintType::MINIMUM:
+        case ConstraintType::MAXIMUM:
+        case ConstraintType::EXCLUSIVE_MINIMUM:
+        case ConstraintType::EXCLUSIVE_MAXIMUM:
+        case ConstraintType::MIN_LENGTH:
+        case ConstraintType::MAX_LENGTH: {
+            // Expect numeric value
+            Token t = lookup();
+            if (t != INTEGER_LITERAL && t != FLOATING_LITERAL) {
+                error("Expected numeric value for range constraint");
+                return false;
+            }
+            
+            next(); // consume the token
+            QByteArray numberStr = lexem();
+            bool ok;
+            
+            // Try to parse as integer first, then as double
+            int intVal = numberStr.toInt(&ok);
+            if (ok) {
+                *value = QJsonValue(intVal);
+            } else {
+                double doubleVal = numberStr.toDouble(&ok);
+                if (ok) {
+                    *value = QJsonValue(doubleVal);
+                } else {
+                    error("Invalid numeric value");
+                    return false;
+                }
+            }
+            break;
+        }
+        
+        case ConstraintType::CONST: {
+            // Parse JSON value (string, number, boolean, null)
+            return parseJsonValue(value);
+        }
+        
+        case ConstraintType::ENUM: {
+            // Parse JSON array
+            if (!test(LBRACK)) {
+                error("Expected '[' for ENUM constraint value");
+                return false;
+            }
+            
+            QJsonArray arrayValue;
+            
+            // Parse array elements
+            while (lookup() != RBRACK) {
+                QJsonValue itemValue;
+                if (!parseJsonValue(&itemValue)) {
+                    return false;
+                }
+                arrayValue.append(itemValue);
+                
+                // Check for comma or end of array
+                if (lookup() == COMMA) {
+                    next(); // consume comma
+                } else if (lookup() != RBRACK) {
+                    error("Expected ',' or ']' in ENUM array");
+                    return false;
+                }
+            }
+            
+            // Consume the closing bracket
+            if (!test(RBRACK)) {
+                error("Expected ']' after ENUM array elements");
+                return false;
+            }
+            
+            *value = QJsonValue(arrayValue);
+            break;
+        }
+        
+        case ConstraintType::PATTERN: {
+            // Parse string literal
+            if (!test(STRING_LITERAL)) {
+                error("Expected string literal for PATTERN constraint");
+                return false;
+            }
+            
+            QByteArray patternStr = lexem();
+            // Remove quotes
+            if (patternStr.length() >= 2 && patternStr.startsWith('"') && patternStr.endsWith('"')) {
+                patternStr = patternStr.mid(1, patternStr.length() - 2);
+            }
+            
+            *value = QJsonValue(QString::fromUtf8(patternStr));
+            break;
+        }
+        
+        default:
+            error("Unsupported constraint type");
+            return false;
+    }
+    
+    return true;
+}
+
+bool Moc::parseJsonValue(QJsonValue *value) {
+    // Parse various JSON value types
+    Token t = lookup();
+    bool isNegative = false;
+    
+    switch (t) {
+        case STRING_LITERAL: {
+            next(); // consume token
+            QByteArray strValue = lexem();
+            // Remove quotes
+            if (strValue.length() >= 2 && strValue.startsWith('"') && strValue.endsWith('"')) {
+                strValue = strValue.mid(1, strValue.length() - 2);
+            }
+            *value = QJsonValue(QString::fromUtf8(strValue));
+            return true;
+        }
+
+        case MINUS:
+            isNegative = true;
+            next();
+            t = lookup();
+            if (t != INTEGER_LITERAL && t != FLOATING_LITERAL) {
+                error("Expected numeric value after '-'");
+            }
+        
+        case INTEGER_LITERAL:
+        case FLOATING_LITERAL: {
+            next(); // consume token
+            QByteArray numberStr = lexem();
+            bool ok;
+            
+            // Try integer first
+            int intVal = numberStr.toInt(&ok);
+            if (ok) {
+                *value = QJsonValue(intVal * (isNegative ? -1 : 1));
+            } else {
+                double doubleVal = numberStr.toDouble(&ok);
+                if (ok) {
+                    *value = QJsonValue(doubleVal * (isNegative ? -1 : 1));
+                } else {
+                    error("Invalid numeric value");
+                    return false;
+                }
+            }
+            return true;
+        }
+        
+        case BOOLEAN_LITERAL: {
+            next(); // consume token
+            QByteArray boolStr = lexem();
+            if (boolStr == "true") {
+                *value = QJsonValue(true);
+            } else if (boolStr == "false") {
+                *value = QJsonValue(false);
+            } else {
+                error("Invalid boolean value");
+                return false;
+            }
+            return true;
+        }
+        
+        case IDENTIFIER: {
+            // Check for null
+            QByteArray identStr = lexem();
+            next(); // consume token
+            if (identStr == "null") {
+                *value = QJsonValue(QJsonValue::Null);
+                return true;
+            }
+            // Fall through to error
+        }
+        
+        default:
+            error("Expected JSON value (string, number, boolean, or null)");
+            return false;
+    }
+}
+
+// Implementation of constraint-related methods
+QByteArray Constraint::typeToString(ConstraintType type) {
+    switch (type) {
+        case ConstraintType::MINIMUM: return "MINIMUM";
+        case ConstraintType::MAXIMUM: return "MAXIMUM";
+        case ConstraintType::EXCLUSIVE_MINIMUM: return "EXCLUSIVE_MINIMUM";
+        case ConstraintType::EXCLUSIVE_MAXIMUM: return "EXCLUSIVE_MAXIMUM";
+        case ConstraintType::CONST: return "CONST";
+        case ConstraintType::ENUM: return "ENUM";
+        case ConstraintType::MIN_LENGTH: return "MIN_LENGTH";
+        case ConstraintType::MAX_LENGTH: return "MAX_LENGTH";
+        case ConstraintType::PATTERN: return "PATTERN";
+        default: return "UNKNOWN";
+    }
+}
+
+bool Constraint::validate(const QJsonValue& input, QString* errorMsg) const {
+    // Implementation will be added in the runtime library
+    // This is just a placeholder for compilation
+    Q_UNUSED(input);
+    Q_UNUSED(errorMsg);
+    return true;
+}
+
+bool ConstraintGroup::validate(const QJsonValue& input, QString* errorMsg) const {
+    // All constraints in the group must be satisfied (AND relationship)
+    for (const auto& constraint : constraints) {
+        if (!constraint.validate(input, errorMsg)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool JsonAttributes::validateConstraints(const QJsonValue& input, QString* errorMsg) const {
+    // At least one constraint group must be satisfied (OR relationship)
+    if (constraintGroups.isEmpty()) {
+        return true; // No constraints means validation passes
+    }
+    
+    for (const auto& group : constraintGroups) {
+        if (group.validate(input, errorMsg)) {
+            return true; // Found a satisfied group
+        }
+    }
+    
+    // No group was satisfied
+    if (errorMsg) {
+        *errorMsg = "Value violates all constraint groups";
+    }
+    return false;
 }
 
 QT_END_NAMESPACE

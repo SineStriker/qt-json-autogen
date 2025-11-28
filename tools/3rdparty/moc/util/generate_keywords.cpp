@@ -248,6 +248,7 @@ static const Keyword keywords[] = {
     { "__qas_attr__", "QAS_ATTR_TOKEN" },
     { "__qas_exclude__", "QAS_EXCLUDE_TOKEN" },
     { "__qas_include__", "QAS_INCLUDE_TOKEN" },
+    { "__qas_constraint__", "QAS_CONSTRAINT_TOKEN" },
     { "QAS_JSON", "QAS_JSON_TOKEN" },
     { "QAS_JSON_NS", "QAS_JSON_NS_TOKEN" },
     /* Add QAS macros end */
